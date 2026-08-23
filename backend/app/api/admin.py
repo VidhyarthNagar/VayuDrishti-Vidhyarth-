@@ -162,6 +162,20 @@ def sync_live_apis_endpoint(req: Optional[SyncLiveApisRequest] = None, auth: boo
         if req.WEATHERAPI_KEY: custom_keys["WEATHERAPI_KEY"] = req.WEATHERAPI_KEY.strip()
         if req.GNEWS_API_KEY: custom_keys["GNEWS_API_KEY"] = req.GNEWS_API_KEY.strip()
     result = live_fetcher.sync_all_live_sources(custom_keys)
+    # Flatten breakdown for backwards-compat with frontend
+    breakdown = result.get("breakdown", {})
+    result["google_news_articles"] = breakdown.get("google_news_rss", 0)
+    result["open_meteo_telemetry_stations"] = breakdown.get("open_meteo_aws", 0)
+    result["openweather_stations"] = breakdown.get("openweather_stations", 0)
+    result["newsapi_articles"] = breakdown.get("newsapi_articles", 0)
+    result["new_sources_count"] = (
+        breakdown.get("imd_official_rss", 0) +
+        breakdown.get("skymet_rss", 0) +
+        breakdown.get("ndma_alerts", 0) +
+        breakdown.get("reddit_citizen_posts", 0) +
+        breakdown.get("nasa_eonet_satellites", 0) +
+        breakdown.get("gdacs_disaster_alerts", 0)
+    )
     return result
 
 class ModerationActionRequest(BaseModel):

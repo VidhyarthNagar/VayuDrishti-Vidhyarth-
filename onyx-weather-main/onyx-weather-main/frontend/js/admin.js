@@ -239,10 +239,19 @@ class AdminPortal {
       });
       const data = await res.json();
       if (data.success) {
-        let details = `Ingested ${data.total_synced} real-time reports (${data.google_news_articles} live news + ${data.open_meteo_telemetry_stations} AWS stations`;
-        if (data.openweather_stations) details += ` + ${data.openweather_stations} OpenWeather stations`;
-        if (data.newsapi_articles) details += ` + ${data.newsapi_articles} NewsAPI press`;
-        details += `).`;
+        const bd = data.breakdown || {};
+        let parts = [];
+        if (bd.google_news_rss) parts.push(`${bd.google_news_rss} Google News`);
+        if (bd.open_meteo_aws) parts.push(`${bd.open_meteo_aws} AWS stations`);
+        if (bd.imd_official_rss) parts.push(`${bd.imd_official_rss} IMD Official`);
+        if (bd.skymet_rss) parts.push(`${bd.skymet_rss} Skymet`);
+        if (bd.ndma_alerts) parts.push(`${bd.ndma_alerts} NDMA alerts`);
+        if (bd.reddit_citizen_posts) parts.push(`${bd.reddit_citizen_posts} Reddit posts`);
+        if (bd.nasa_eonet_satellites) parts.push(`${bd.nasa_eonet_satellites} NASA EONET`);
+        if (bd.gdacs_disaster_alerts) parts.push(`${bd.gdacs_disaster_alerts} GDACS`);
+        if (bd.newsapi_articles) parts.push(`${bd.newsapi_articles} NewsAPI`);
+        if (bd.openweather_stations) parts.push(`${bd.openweather_stations} OpenWeather`);
+        let details = `Ingested ${data.total_synced} real-time reports from ${parts.length} sources: ${parts.join(', ')}.`;
 
         this.showToast(`✓ Live Sync Complete! ${details}`);
         await this.fetchModerationQueue();
