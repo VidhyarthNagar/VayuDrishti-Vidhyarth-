@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from .config import BASE_DIR
+from .config import BASE_DIR, IS_SERVERLESS
 from .database import init_db, seed_database_if_empty
 from .api.reports import router as reports_router
 from .api.analytics import router as analytics_router
@@ -23,13 +23,19 @@ FRONTEND_DIR = BASE_DIR / "frontend"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Initialize Database, Seed default dataset, launch background worker
-    init_db()
-    seed_database_if_empty()
-    bg_task = asyncio.create_task(background_stream_worker())
-    yield
-    # Shutdown: Cancel background worker
-    bg_task.cancel()
+    # Startup: Initialize Database, Seed default dataset
+    try:
+        init_db()
+        seed_database_if_empty()
+    except Exception as e:
+        print(f"Warning: Database initialization error: {e}")
+
+    if not IS_SERVERLESS:
+        bg_task = asyncio.create_task(background_stream_worker())
+        yield
+        bg_task.cancel()
+    else:
+        yield
 
 app = FastAPI(
     title="VayuDrishti - National Weather Big Data Analytics Platform",

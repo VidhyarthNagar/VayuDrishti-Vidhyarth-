@@ -7,7 +7,13 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = BASE_DIR / "data"
-DB_PATH = BASE_DIR / "weather_bigdata.db"
+
+# Serverless environment detection (Vercel, AWS Lambda) where /var/task is read-only
+IS_SERVERLESS = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+if IS_SERVERLESS:
+    DB_PATH = Path("/tmp") / "weather_bigdata.db"
+else:
+    DB_PATH = BASE_DIR / "weather_bigdata.db"
 
 # Spatiotemporal Clustering Settings for Deduplication
 DEDUP_DISTANCE_KM_THRESHOLD = 8.0  # within 8 km radius
