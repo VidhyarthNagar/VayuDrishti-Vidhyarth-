@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VayuDrishti | National Weather Big Data Analytics Platform (India)</title>
+  <meta name="description" content="Real-time multi-source meteorological big data ingestion, AI-driven fake report detection, deduplication, and geospatial analytics for India.">
+  
+  <!-- Leaflet & MarkerCluster CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  
+  <!-- Custom Styling -->
+  <link rel="stylesheet" href="/static/css/styles.css" />
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header class="navbar">
+    <a href="/" class="brand" id="brand-logo">
+      <div class="brand-icon">🛰️</div>
+      <div class="brand-text">
+        <h1>VayuDrishti</h1>
+        <p>National Weather Big Data Intelligence Platform &bull; IMD Hub</p>
+      </div>
+    </a>
+
+    <div class="nav-links">
+      <div style="display: flex; align-items: center; gap: 0.5rem; margin-right: 1rem; font-size: 0.8rem; color: var(--text-secondary);">
+        <span class="pulse-indicator"></span>
+        <span>LIVE INGESTION ACTIVE</span>
+      </div>
+      <a href="/" class="nav-link active" id="nav-dashboard">📊 Dashboard</a>
+      <a href="/admin" class="nav-link admin-btn" id="nav-admin">🛡️ Admin & CAP Command</a>
+      <a href="/citizen" class="nav-link citizen-btn" id="nav-citizen">📱 Citizen Watcher</a>
+    </div>
+  </header>
+
+  <!-- Real-Time Emergency Alert Ticker Bar -->
+  <div class="alert-ticker-bar" id="alert-ticker">
+    <span class="alert-badge">⚡ ACTIVE WEATHER ALERTS</span>
+    <div class="ticker-content" id="ticker-text">
+      <strong>[ORANGE ALERT - DELHI NCR]:</strong> Severe Thunderstorm with squall winds 55-65 km/h &bull; <strong>[RED ALERT - ODISHA]:</strong> Cyclonic storm DANA approaching coastal districts.
+    </div>
+  </div>
+
+  <main class="container">
+
+    <!-- Top Big Data Telemetry Metric Cards -->
+    <section class="telemetry-grid" aria-label="Key Performance Indicators">
+      <div class="glass-panel telemetry-card">
+        <div class="stat-header">
+          <span>Total Ingested Reports</span>
+          <span class="stat-icon">📡</span>
+        </div>
+        <div class="stat-value" id="stat-total-reports">0</div>
+        <div class="stat-footer">
+          <span class="trend-up">↑ Real-Time Ingestion</span> &bull; <span>#IMD & Social Feeds</span>
+        </div>
+      </div>
+
+      <div class="glass-panel telemetry-card green-glow">
+        <div class="stat-header">
+          <span>Verified Truth Rate</span>
+          <span class="stat-icon">✅</span>
+        </div>
+        <div class="stat-value" id="stat-verified-reports" style="color: var(--accent-emerald);">0</div>
+        <div class="stat-footer">
+          <span>IMD Official + AI Radar Corroborated</span>
+        </div>
+      </div>
+
+      <div class="glass-panel telemetry-card red-glow">
+        <div class="stat-header">
+          <span>Fake / Hoaxes Intercepted</span>
+          <span class="stat-icon">🛡️</span>
+        </div>
+        <div class="stat-value" id="stat-fake-blocked" style="color: var(--accent-red);">0</div>
+        <div class="stat-footer">
+          <span class="trend-down">Blocked via NLP & Radar Check</span>
+        </div>
+      </div>
+
+      <div class="glass-panel telemetry-card purple-glow">
+        <div class="stat-header">
+          <span>Deduplication Reduction</span>
+          <span class="stat-icon">🔗</span>
+        </div>
+        <div class="stat-value" id="stat-dedup-pct" style="color: #c084fc;">0%</div>
+        <div class="stat-footer">
+          <span>Spatiotemporal Clustering Saved</span>
+        </div>
+      </div>
+
+      <div class="glass-panel telemetry-card">
+        <div class="stat-header">
+          <span>Active CAP Alerts</span>
+          <span class="stat-icon">🚨</span>
+        </div>
+        <div class="stat-value" id="stat-active-alerts" style="color: var(--accent-amber);">0</div>
+        <div class="stat-footer">
+          <span>High Severity Disaster Bulletins</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Multi-Dimensional Filter Control Panel -->
+    <section class="glass-panel filter-panel" aria-label="Filters">
+      <!-- Row 1: Date & Time Presets + Event Categories -->
+      <div class="filter-row">
+        <div class="filter-group">
+          <span class="filter-label">📅 Date Window:</span>
+          <div class="filter-pills">
+            <button class="filter-pill date-pill active" data-preset="all" id="btn-date-all">All History</button>
+            <button class="filter-pill date-pill" data-preset="24h" id="btn-date-24h">Last 24 Hours</button>
+            <button class="filter-pill date-pill" data-preset="7d" id="btn-date-7d">Last 7 Days</button>
+            <button class="filter-pill date-pill" data-preset="30d" id="btn-date-30d">Monsoon Season (30d)</button>
+          </div>
+        </div>
+
+        <div class="filter-group" style="margin-left: auto;">
+          <span class="filter-label">🌧️ Weather Event:</span>
+          <div class="filter-pills">
+            <button class="filter-pill event-pill active" data-event="all" id="btn-event-all">All Events</button>
+            <button class="filter-pill event-pill" data-event="rainfall">Rainfall 🌧️</button>
+            <button class="filter-pill event-pill" data-event="flooding">Flooding 🌊</button>
+            <button class="filter-pill event-pill" data-event="thunderstorm">Thunderstorm ⚡</button>
+            <button class="filter-pill event-pill" data-event="heatwave">Heatwave 🔥</button>
+            <button class="filter-pill event-pill" data-event="fog">Dense Fog 🌫️</button>
+            <button class="filter-pill event-pill" data-event="dust_storm">Dust Storm 🌪️</button>
+            <button class="filter-pill event-pill" data-event="cyclone">Cyclone 🌀</button>
+            <button class="filter-pill event-pill" data-event="hailstorm">Hailstorm 🌨️</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: Location, Verification Status, Source, Search & Exports -->
+      <div class="filter-row">
+        <div class="filter-group">
+          <span class="filter-label">📍 State / Region:</span>
+          <select class="select-control" id="filter-state">
+            <option value="all">All Indian States (28 States & UTs)</option>
+            <option value="Maharashtra">Maharashtra (Mumbai, Pune)</option>
+            <option value="Delhi">Delhi NCR</option>
+            <option value="West Bengal">West Bengal (Kolkata)</option>
+            <option value="Tamil Nadu">Tamil Nadu (Chennai)</option>
+            <option value="Karnataka">Karnataka (Bengaluru)</option>
+            <option value="Odisha">Odisha (Bhubaneswar, Puri)</option>
+            <option value="Assam">Assam (Guwahati)</option>
+            <option value="Rajasthan">Rajasthan (Jaipur, Jodhpur)</option>
+            <option value="Gujarat">Gujarat (Ahmedabad, Surat)</option>
+            <option value="Kerala">Kerala (Kochi, Trivandrum)</option>
+            <option value="Uttar Pradesh">Uttar Pradesh (Lucknow, Varanasi)</option>
+            <option value="Uttarakhand">Uttarakhand (Dehradun)</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <span class="filter-label">🛡️ Verification:</span>
+          <select class="select-control" id="filter-status">
+            <option value="all">All Verification Statuses</option>
+            <option value="verified_imd,verified_ai,citizen_corroborated">All Verified (Truth Stream)</option>
+            <option value="verified_imd">Official IMD Station Verified</option>
+            <option value="verified_ai">AI ML Corroborated</option>
+            <option value="citizen_corroborated">Citizen Verified</option>
+            <option value="under_review">Under Review / Pending</option>
+            <option value="fake_misleading">Flagged Fake / Misinformation</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <span class="filter-label">📡 Source:</span>
+          <select class="select-control" id="filter-source">
+            <option value="all">All Sources</option>
+            <option value="Twitter/X">Twitter / X (#IMD Feeds)</option>
+            <option value="Citizen Report">Citizen Watcher App</option>
+            <option value="IMD Radar AWS">IMD Doppler Radar / AWS</option>
+            <option value="Public API">OpenWeather / Public Stream</option>
+            <option value="RSS Feed">State Disaster Bulletins</option>
+          </select>
+        </div>
+
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="input-control" id="filter-search" placeholder="Search keywords (#MumbaiRains, waterlogging, flood, heat)..." />
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <input type="checkbox" id="filter-primaries-only" style="cursor: pointer;" />
+          <label for="filter-primaries-only" style="font-size: 0.78rem; color: var(--text-secondary); cursor: pointer;">Unique Clusters Only</label>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; margin-left: auto;">
+          <button class="btn btn-secondary" id="btn-export-csv" title="Download CSV">📥 CSV</button>
+          <button class="btn btn-secondary" id="btn-export-json" title="Download JSON">📄 JSON</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Operational Split: India Geospatial Map & Live Stream Feed -->
+    <section class="dashboard-grid">
+      
+      <!-- Interactive Geospatial GIS Map -->
+      <div class="glass-panel map-container-wrapper">
+        <div class="map-toolbar">
+          <div style="display: flex; align-items: center; gap: 0.65rem;">
+            <span style="font-weight: 700; font-size: 0.95rem;">🗺️ India National Weather Map</span>
+            <span style="font-size: 0.75rem; color: var(--text-muted);" id="filter-result-count">Loading events...</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-size: 0.75rem; color: var(--text-secondary);">Doppler Radar Overlay Active</span>
+            <span class="pulse-indicator" style="background: var(--accent-cyan); box-shadow: 0 0 10px var(--accent-cyan);"></span>
+          </div>
+        </div>
+        <div id="india-map" class="map-view"></div>
+      </div>
+
+      <!-- Real-Time Ingested Reports Feed Sidebar -->
+      <div class="glass-panel feed-wrapper">
+        <div class="feed-header">
+          <div class="feed-title">
+            <span>⚡ Live Telemetry Stream</span>
+            <span class="pulse-indicator"></span>
+          </div>
+          <span style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono);">SYNC: WEBSOCKET</span>
+        </div>
+        <div class="feed-stream" id="live-feed-stream">
+          <!-- Injected dynamically via app.js -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Big Data Analytics & Charts Grid -->
+    <section class="charts-grid" aria-label="Big Data Analytics">
+      
+      <!-- Chart 1: 24h Timeline -->
+      <div class="glass-panel chart-card">
+        <div class="chart-header">
+          <span class="chart-title">📈 24-Hour Temporal Ingestion & Verification Volume</span>
+          <span style="font-size: 0.72rem; color: var(--text-muted);">Hourly Time-Series</span>
+        </div>
+        <div class="chart-canvas-wrapper">
+          <canvas id="chart-timeline"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 2: Event Type Distribution -->
+      <div class="glass-panel chart-card">
+        <div class="chart-header">
+          <span class="chart-title">🌪️ Disaster & Weather Event Breakdown</span>
+          <span style="font-size: 0.72rem; color: var(--text-muted);">NLP Classified</span>
+        </div>
+        <div class="chart-canvas-wrapper">
+          <canvas id="chart-events"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 3: Top State Vulnerability Index -->
+      <div class="glass-panel chart-card">
+        <div class="chart-header">
+          <span class="chart-title">🏛️ Top State Incident & Severity Index</span>
+          <span style="font-size: 0.72rem; color: var(--text-muted);">Regional Vulnerability</span>
+        </div>
+        <div class="chart-canvas-wrapper">
+          <canvas id="chart-states"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 4: AI Misinformation & Verification Polar Area -->
+      <div class="glass-panel chart-card">
+        <div class="chart-header">
+          <span class="chart-title">🛡️ AI Credibility & Verification Proportions</span>
+          <span style="font-size: 0.72rem; color: var(--text-muted);">Trust Distribution</span>
+        </div>
+        <div class="chart-canvas-wrapper">
+          <canvas id="chart-verification"></canvas>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Interactive Detail Modal -->
+  <div class="modal-backdrop" id="modal-backdrop">
+    <div class="modal-window">
+      <button class="modal-close" onclick="app.closeDetailModal()">&times;</button>
+      <div id="modal-detail-content"></div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Hub -->
+  <div id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  
+  <script src="/static/js/map.js"></script>
+  <script src="/static/js/charts.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

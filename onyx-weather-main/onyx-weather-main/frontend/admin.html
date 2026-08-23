@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin & CAP Emergency Command Center | VayuDrishti</title>
+  <meta name="description" content="Administrative moderation, fake report verification, scenario simulation, and CAP emergency disaster alerts.">
+  <link rel="stylesheet" href="/static/css/styles.css" />
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="navbar">
+    <a href="/" class="brand">
+      <div class="brand-icon">🛡️</div>
+      <div class="brand-text">
+        <h1>VayuDrishti Command Center</h1>
+        <p>IMD Emergency Operations & Moderation Console</p>
+      </div>
+    </a>
+
+    <div class="nav-links">
+      <a href="/" class="nav-link">📊 Public Dashboard</a>
+      <a href="/admin" class="nav-link active admin-btn">🛡️ Admin Command</a>
+      <a href="/citizen" class="nav-link citizen-btn">📱 Citizen Watcher</a>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Top Action Grid: Scenario Simulator & Emergency CAP Dispatcher -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+      
+      <!-- Disaster Scenario Simulation Trigger Panel -->
+      <div class="glass-panel" style="padding: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h2 style="font-size: 1.1rem; font-weight: 700;">⚡ Live Disaster Scenario Injector</h2>
+          <span class="badge-ai" style="font-size: 0.72rem; padding: 0.2rem 0.5rem; border-radius: 99px;">SIMULATOR ACTIVE</span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+          Inject real-time multi-source data streams to evaluate AI misinformation detection, deduplication, and geospatial alerting response under stress:
+        </p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+          <button class="btn btn-secondary btn-scenario" data-scenario="cyclone_landfall" style="justify-content: center; text-align: center; padding: 0.75rem;">
+            🌀 Cyclone Dana Landfall<br><small style="color: var(--text-muted);">Odisha-Bengal Coast</small>
+          </button>
+          <button class="btn btn-secondary btn-scenario" data-scenario="mumbai_cloudburst" style="justify-content: center; text-align: center; padding: 0.75rem;">
+            🌧️ Mumbai 100mm Cloudburst<br><small style="color: var(--text-muted);">Suburban Flooding</small>
+          </button>
+          <button class="btn btn-secondary btn-scenario" data-scenario="delhi_severe_smog" style="justify-content: center; text-align: center; padding: 0.75rem;">
+            🌫️ Delhi Toxic Smog<br><small style="color: var(--text-muted);">AQI 495+ Zero Visibility</small>
+          </button>
+          <button class="btn btn-secondary btn-scenario" data-scenario="random" style="justify-content: center; text-align: center; padding: 0.75rem;">
+            🎲 Ingest Random Batch<br><small style="color: var(--text-muted);">National Telemetry</small>
+          </button>
+        </div>
+      </div>
+
+      <!-- CAP Emergency Broadcast Dispatcher -->
+      <div class="glass-panel" style="padding: 1.5rem;">
+        <h2 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem;">🚨 Issue CAP Emergency Disaster Warning</h2>
+        <p style="font-size: 0.825rem; color: var(--text-secondary); margin-bottom: 1rem;">
+          Dispatches Common Alerting Protocol (CAP) notifications to district collectors, disaster management teams, and public tickers.
+        </p>
+
+        <form id="form-cap-alert">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+            <div>
+              <label class="form-label">Alert Title</label>
+              <input type="text" id="alert-title" class="form-input" placeholder="e.g. Red Alert: Cyclone Landfall Warning" required />
+            </div>
+            <div>
+              <label class="form-label">Event Category</label>
+              <select id="alert-event-type" class="form-select">
+                <option value="cyclone">Cyclone & Gale Winds</option>
+                <option value="flooding">Flash Flooding & Dam Breach</option>
+                <option value="thunderstorm">Severe Lightning / Squall</option>
+                <option value="heatwave">Extreme Heatwave (47°C+)</option>
+                <option value="fog">Zero Visibility Smog</option>
+                <option value="hailstorm">Cloudburst & Hailstorm</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+            <div>
+              <label class="form-label">Severity Level</label>
+              <select id="alert-severity" class="form-select">
+                <option value="Red Alert Emergency">🔴 Red Alert Emergency</option>
+                <option value="Orange Alert Warning">🟠 Orange Alert Warning</option>
+                <option value="Yellow Alert Watch">🟡 Yellow Alert Watch</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Target State</label>
+              <select id="alert-state" class="form-select">
+                <option value="Odisha">Odisha</option>
+                <option value="Maharashtra">Maharashtra</option>
+                <option value="Delhi">Delhi NCR</option>
+                <option value="West Bengal">West Bengal</option>
+                <option value="Tamil Nadu">Tamil Nadu</option>
+                <option value="Assam">Assam</option>
+                <option value="Rajasthan">Rajasthan</option>
+                <option value="Kerala">Kerala</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Valid Hours</label>
+              <input type="number" id="alert-valid-hours" class="form-input" value="24" min="1" max="72" />
+            </div>
+          </div>
+
+          <div style="margin-bottom: 0.75rem;">
+            <label class="form-label">Target Districts / Zones</label>
+            <input type="text" id="alert-district" class="form-input" placeholder="e.g. Bhadrak, Balasore, Kendrapara, Jagatsinghpur" required />
+          </div>
+
+          <div style="margin-bottom: 1rem;">
+            <label class="form-label">Citizen Instructions & Safety Guidance</label>
+            <input type="text" id="alert-instructions" class="form-input" placeholder="Evacuate coastal katcha houses, suspend fishing ops, move to cyclone shelters." required />
+          </div>
+
+          <button type="submit" class="btn btn-danger" style="width: 100%; justify-content: center;">
+            📢 Broadcast National Emergency Alert
+          </button>
+        </form>
+      </div>
+
+    </div>
+
+    <!-- Moderation Queue -->
+    <section style="margin-bottom: 2rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div>
+          <h2 style="font-size: 1.25rem; font-weight: 700;">🔍 AI Moderation & Misinformation Review Queue</h2>
+          <p style="font-size: 0.825rem; color: var(--text-secondary);">
+            Reports flagged for sensationalism, climatological anomaly, low author trust, or radar discrepancy requiring admin disposition.
+          </p>
+        </div>
+        <button class="btn btn-secondary" onclick="adminPortal.fetchModerationQueue()">🔄 Refresh Queue</button>
+      </div>
+
+      <div id="moderation-queue-list">
+        <!-- Injected via admin.js -->
+      </div>
+    </section>
+
+    <!-- Moderation Audit Logs -->
+    <section class="glass-panel" style="padding: 1.5rem; margin-bottom: 2rem;">
+      <h2 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem;">📋 Administrative Action Audit Trail</h2>
+      <div style="overflow-x: auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Report ID</th>
+              <th>Action</th>
+              <th>Officer</th>
+              <th>Status Transition</th>
+              <th>Reasoning</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody id="audit-log-tbody">
+            <!-- Injected via admin.js -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Toast Hub -->
+  <div id="toast-container"></div>
+
+  <script src="/static/js/admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+"""
+Antigravity VayuDrishti - National Weather Big Data Analytics Platform
+Configuration Settings
+"""
+import os
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+DATA_DIR = BASE_DIR / "data"
+DB_PATH = BASE_DIR / "weather_bigdata.db"
+
+# Spatiotemporal Clustering Settings for Deduplication
+DEDUP_DISTANCE_KM_THRESHOLD = 8.0  # within 8 km radius
+DEDUP_TIME_WINDOW_MINUTES = 45     # within 45 minutes
+DEDUP_SEMANTIC_SIMILARITY_THRESHOLD = 0.62  # TF-IDF Cosine similarity
+
+# Fake / Misleading Detection Settings
+FAKE_SENSATIONALISM_WEIGHT = 0.40
+FAKE_SOURCE_TRUST_WEIGHT = 0.30
+FAKE_RADAR_ANOMALY_WEIGHT = 0.30
+FAKE_PROBABILITY_THRESHOLD = 0.65  # Flag if >= 0.65
+
+# Server Configuration
+HOST = "0.0.0.0"
+PORT = 8080

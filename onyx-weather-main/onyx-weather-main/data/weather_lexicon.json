@@ -1,0 +1,77 @@
+{
+  "categories": {
+    "rainfall": {
+      "display_name": "Rainfall & Monsoon",
+      "severity_levels": ["Light Rain", "Moderate Rain", "Heavy Rain", "Torrential / Cloudburst"],
+      "keywords": ["rain", "raining", "rainfall", "downpour", "drizzle", "monsoon", "barsaat", "baarish", "megh", "shower", "cloudburst", "mumbai rains", "delhi rains", "chennai rains", "bengaluru rains"],
+      "hashtags": ["#IMD", "#Monsoon", "#MumbaiRains", "#DelhiRains", "#BengaluruRains", "#ChennaiRains", "#RainAlert", "#WeatherUpdate", "#IMDWeather"],
+      "color": "#3b82f6",
+      "icon": "🌧️"
+    },
+    "thunderstorm": {
+      "display_name": "Thunderstorm & Lightning",
+      "severity_levels": ["Moderate Thunderstorm", "Severe Lightning", "Squall Alert"],
+      "keywords": ["thunder", "thunderstorm", "lightning", "squall", "bijli", "tufan", "toofan", "lightning strike", "thunderclap", "damini alert", "norwester", "kalbaisakhi"],
+      "hashtags": ["#IMD", "#Thunderstorm", "#Lightning", "#LightningAlert", "#Squall", "#Kalbaisakhi", "#Damini"],
+      "color": "#8b5cf6",
+      "icon": "⚡"
+    },
+    "flooding": {
+      "display_name": "Flooding & Waterlogging",
+      "severity_levels": ["Localized Waterlogging", "Severe Inundation", "Flash Flood", "River Deluge Catastrophe"],
+      "keywords": ["flood", "flooding", "waterlogging", "inundation", "submerged", "deluge", "baadh", "jalaashay", "breach", "overflowing river", "brahmaputra flood", "mithi river", "rescue boat", "ndrf"],
+      "hashtags": ["#IMD", "#FloodAlert", "#Waterlogging", "#AssamFloods", "#MumbaiFloods", "#FlashFlood", "#NDRF"],
+      "color": "#06b6d4",
+      "icon": "🌊"
+    },
+    "heatwave": {
+      "display_name": "Heatwave & Extreme Temp",
+      "severity_levels": ["Warm Conditions", "Heatwave (40-44°C)", "Severe Heatwave (>45°C)", "Record Breaking Heat (>48°C)"],
+      "keywords": ["heat", "heatwave", "loo", "scorching", "sunstroke", "dehydration", "extreme temperature", "garmi", "tapan", "red alert heat", "yellow alert heat", "temperature 45", "temperature 47", "temperature 48"],
+      "hashtags": ["#IMD", "#Heatwave", "#SevereHeatwave", "#LooAlert", "#Summer2024", "#ExtremeHeat"],
+      "color": "#ef4444",
+      "icon": "🔥"
+    },
+    "fog": {
+      "display_name": "Dense Fog & Low Visibility",
+      "severity_levels": ["Shallow Fog", "Moderate Fog", "Dense Fog (<200m)", "Zero Visibility Fog (<50m)"],
+      "keywords": ["fog", "dense fog", "smog", "visibility", "kohra", "dhund", "air quality", "aqi severe", "flight delayed fog", "trains delayed fog", "zero visibility", "delhi smog"],
+      "hashtags": ["#IMD", "#DenseFog", "#FogAlert", "#DelhiFog", "#DelhiSmog", "#LowVisibility", "#ColdWave"],
+      "color": "#94a3b8",
+      "icon": "🌫️"
+    },
+    "dust_storm": {
+      "display_name": "Dust Storm & Andhi",
+      "severity_levels": ["Moderate Dust Storm", "Severe Andhi", "Blinding Dust Storm"],
+      "keywords": ["dust storm", "sandstorm", "andhi", "aandhi", "dust gale", "rajasthan dust", "particulate storm", "blowing dust", "sand haze"],
+      "hashtags": ["#IMD", "#DustStorm", "#AndhiAlert", "#RajasthanWeather", "#SandStorm"],
+      "color": "#d97706",
+      "icon": "🌪️"
+    },
+    "cyclone": {
+      "display_name": "Cyclone & Strong Gale Winds",
+      "severity_levels": ["Depression", "Cyclonic Storm (65-88 km/h)", "Severe Cyclonic Storm", "Super Cyclone (>220 km/h)"],
+      "keywords": ["cyclone", "cyclonic storm", "gale", "strong winds", "landfall", "chakravat", "storm surge", "cyclone alert", "bay of bengal cyclone", "arabian sea cyclone", "cyclone dana", "cyclone michaung", "cyclone biparjoy"],
+      "hashtags": ["#IMD", "#CycloneAlert", "#CycloneLandfall", "#SuperCyclone", "#BayOfBengal", "#ArabianSea"],
+      "color": "#ec4899",
+      "icon": "🌀"
+    },
+    "hailstorm": {
+      "display_name": "Hailstorm & Cloudburst",
+      "severity_levels": ["Small Hail (<1cm)", "Damaging Hailstorm (2-5cm)", "Severe Hail & Cloudburst"],
+      "keywords": ["hail", "hailstorm", "hailstones", "oley", "ola", "cloudburst", "ice stones", "damaged crops hail", "hail damage"],
+      "hashtags": ["#IMD", "#Hailstorm", "#HailAlert", "#Cloudburst", "#WeatherDamage"],
+      "color": "#6366f1",
+      "icon": "🌨️"
+    }
+  },
+  "sensational_keywords": [
+    "end of the world", "doomsday", "armageddon", "all will die", "secret weather weapon", "haarp",
+    "unprecedented apocalypse", "everyone evacuate immediately without official notice",
+    "government is hiding the cyclone", "massive 100m tsunami coming to delhi", "chennai temperature 60 degrees",
+    "shimla 50 degrees heatwave", "snowfall in thar desert today", "breaking exclusive unofficial secret radar"
+  ],
+  "trusted_sources": [
+    "Indiametdept", "PIB_India", "NDRFHQ", "DDNewslive", "SkymetWeather", "IMDMumbai", "IMD_Kolkata", "IMD_Chennai", "PIBFactCheck", "DisasterMgmtGov"
+  ]
+}
