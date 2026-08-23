@@ -64,11 +64,16 @@ def submit_citizen_report(req: CitizenReportSubmission):
     if len(req.text.strip()) < 5:
         raise HTTPException(status_code=400, detail="Report description is too short")
 
+    # Anonymous citizen reporters get a lower starting trust score so the ML
+    # fake detector is appropriately skeptical. Verified media orgs get higher trust.
+    is_anonymous = req.author_name.strip().lower() in ("anonymous", "anon", "", "citizen")
+    trust_score = 0.55 if is_anonymous else 0.72
+
     raw_payload = {
         "source": "Citizen Report",
-        "author_handle": f"Citizen-App#{abs(hash(req.author_name)) % 9000 + 1000}",
-        "author_name": req.author_name,
-        "author_trust_score": 0.85,
+        "author_handle": f"@Citizen_{abs(hash(req.author_name)) % 9000 + 1000}",
+        "author_name": req.author_name if not is_anonymous else "Anonymous Citizen",
+        "author_trust_score": trust_score,
         "text": req.text,
         "hashtags": req.hashtags or ["#CitizenReport", "#IMD"],
         "city": req.city,

@@ -146,11 +146,26 @@ class AdminPortal {
 
   async fetchModerationQueue() {
     try {
-      const res = await fetch('/api/reports?status=under_review,fake_misleading&limit=50', {
-        headers: this.getAuthHeaders()
-      });
-      const data = await res.json();
-      this.pendingReports = data.reports || [];
+      // Fetch flagged/under_review reports AND all citizen-submitted reports for admin oversight
+      const [flaggedRes, citizenRes] = await Promise.all([
+        fetch('/api/reports?status=under_review,fake_misleading&limit=50', { headers: this.getAuthHeaders() }),
+        fetch('/api/reports?source=Citizen%20Report&status=citizen_corroborated,verified_ai,under_review,fake_misleading&limit=50', { headers: this.getAuthHeaders() })
+      ]);
+      const flaggedData = await flaggedRes.json();
+      const citizenData = await citizenRes.json();
+
+      // Merge and deduplicate by ID, flagged ones first
+      const seen = new Set();
+      const allReports = [];
+      for (const r of [...(flaggedData.reports || []), ...(citizenData.reports || [])]) {
+        if (!seen.has(r.id)) {
+          seen.add(r.id);
+          allReports.push(r);
+        }
+      }
+      // Sort: highest fake probability first
+      allReports.sort((a, b) => (b.fake_probability || 0) - (a.fake_probability || 0));
+      this.pendingReports = allReports;
       this.renderQueue();
     } catch (e) {
       console.error('Error fetching queue:', e);
@@ -284,23 +299,27 @@ class AdminPortal {
 
     container.innerHTML = this.pendingReports.map(r => {
       const isFake = r.verification_status === 'fake_misleading';
+      const isUnderReview = r.verification_status === 'under_review';
+      const isCitizen = r.source === 'Citizen Report';
       const fakePct = Math.round((r.fake_probability || 0) * 100);
+      const mlPct = r.ml_fake_probability !== undefined ? Math.round(r.ml_fake_probability * 100) : null;
+      const borderColor = isFake ? 'var(--accent-red)' : isCitizen ? '#a855f7' : 'var(--accent-amber)';
+      const statusLabel = isFake ? '🚨 FLAGGED FAKE' : isUnderReview ? '⚠️ Under Review' : isCitizen ? '👤 Citizen Report' : '📋 Review';
+      const statusColor = isFake ? 'badge-fake' : isUnderReview ? 'badge-review' : 'badge-ai';
 
       return `
-        <div class="glass-panel" style="padding: 1.25rem; margin-bottom: 1rem; border-left: 4px solid ${isFake ? 'var(--accent-red)' : 'var(--accent-amber)'};">
+        <div class="glass-panel" style="padding: 1.25rem; margin-bottom: 1rem; border-left: 4px solid ${borderColor};">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
             <div>
-              <span class="source-tag">${r.source}</span>
-              <strong style="margin-left: 0.5rem; font-size: 0.95rem;">${r.author_handle}</strong>
+              <span class="source-tag" style="${isCitizen ? 'background: rgba(168,85,247,0.15); border-color: #a855f7; color: #a855f7;' : ''}">${r.source}</span>
+              <strong style="margin-left: 0.5rem; font-size: 0.95rem;">${r.author_handle || r.author_name}</strong>
               <span style="color: var(--text-muted); font-size: 0.75rem; margin-left: 0.5rem;">📍 ${r.city}, ${r.state} &bull; 🕒 ${new Date(r.timestamp).toLocaleTimeString()}</span>
             </div>
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
-              <span style="font-size: 0.75rem; color: ${fakePct > 60 ? '#f87171' : '#fbbf24'}; font-weight: 700;">
-                Fake Probability: ${fakePct}%
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+              <span style="font-size: 0.75rem; color: ${fakePct > 60 ? '#f87171' : fakePct > 35 ? '#fbbf24' : '#4ade80'}; font-weight: 700;">
+                🤖 Fake Score: ${fakePct}%${mlPct !== null ? ` (ML: ${mlPct}%)` : ''}
               </span>
-              <span class="card-status-badge ${isFake ? 'badge-fake' : 'badge-review'}">
-                ${isFake ? 'Flagged Fake' : 'Under Review'}
-              </span>
+              <span class="card-status-badge ${statusColor}">${statusLabel}</span>
             </div>
           </div>
 
