@@ -10,6 +10,8 @@ Free/Keyless Sources (no API key required):
   6. Reddit India/City Weather Community Posts (RSS)
   7. NASA EONET Natural Events Tracker
   8. GDACS Global Disaster Alert Feed
+  9. Mastodon Fediverse #Weather RSS
+  10. UN ReliefWeb Disaster API
 
 Paid API Sources (optional, enter key in admin panel):
   9. NewsAPI.org
@@ -440,7 +442,57 @@ class LiveFetcher:
         return results
 
     # ─────────────────────────────────────────────────────────
-    # SOURCE 9-12: Paid API Sources (optional — require API key)
+    # SOURCE 9: Mastodon Fediverse RSS (free, no key)
+    # ─────────────────────────────────────────────────────────
+    def fetch_mastodon_rss(self) -> List[Dict[str, Any]]:
+        results = []
+        try:
+            url = "https://mastodon.social/tags/weather.rss"
+            res = requests.get(url, headers=BROWSER_HEADERS, timeout=10)
+            if res.status_code == 200:
+                root = ET.fromstring(res.text)
+                for item in root.findall(".//item")[:15]:
+                    desc = item.findtext("description", "")
+                    # Mastodon descriptions are HTML, strip tags
+                    desc = re.sub(r'<[^>]+>', ' ', desc).strip()
+                    if "india" in desc.lower() or "imd" in desc.lower():
+                        city = self._match_city(desc)
+                        results.append(self._make_report(
+                            "Social Media", "@MastodonUser", "Mastodon Fediverse",
+                            0.70, f"Mastodon Report: {desc[:200]}...", city
+                        ))
+        except Exception as e:
+            logger.error("Mastodon error: %s", e)
+        return results
+
+    # ─────────────────────────────────────────────────────────
+    # SOURCE 10: UN ReliefWeb Disaster API (free, no key)
+    # ─────────────────────────────────────────────────────────
+    def fetch_reliefweb_api(self) -> List[Dict[str, Any]]:
+        results = []
+        try:
+            # Country ISO3 for India is IND
+            url = "https://api.reliefweb.int/v1/disasters?appname=vayudrishti&profile=list&preset=latest&query[value]=country.iso3:IND"
+            res = requests.get(url, headers=BROWSER_HEADERS, timeout=10)
+            if res.status_code == 200:
+                data = res.json().get("data", [])
+                for d in data:
+                    fields = d.get("fields", {})
+                    name = fields.get("name", "")
+                    if not name: continue
+                    city = self._match_city(name)
+                    results.append(self._make_report(
+                        "Govt/NGO Alert", "@ReliefWeb", "UN ReliefWeb",
+                        0.99, f"ReliefWeb Disaster Alert for India: {name}", city,
+                        event_type="flooding",
+                        verification="verified_imd"
+                    ))
+        except Exception as e:
+            logger.error("ReliefWeb error: %s", e)
+        return results
+
+    # ─────────────────────────────────────────────────────────
+    # SOURCE 11-14: Paid API Sources (optional — require API key)
     # ─────────────────────────────────────────────────────────
     def fetch_newsapi_org(self, api_key: str) -> List[Dict[str, Any]]:
         results = []
@@ -537,6 +589,8 @@ class LiveFetcher:
         reddit        = self.fetch_reddit_weather_posts()
         nasa_eonet    = self.fetch_nasa_eonet()
         gdacs         = self.fetch_gdacs_alerts()
+        mastodon      = self.fetch_mastodon_rss()
+        reliefweb     = self.fetch_reliefweb_api()
 
         # Optional paid sources
         newsapi     = self.fetch_newsapi_org(keys.get("NEWS_API_KEY", ""))
@@ -544,7 +598,7 @@ class LiveFetcher:
         weatherapi  = self.fetch_weatherapi_com(keys.get("WEATHERAPI_KEY", ""))
 
         all_reports = (google_news + open_meteo + imd_official + skymet +
-                       ndma + reddit + nasa_eonet + gdacs +
+                       ndma + reddit + nasa_eonet + gdacs + mastodon + reliefweb +
                        newsapi + owm + weatherapi)
 
         return {
@@ -559,6 +613,8 @@ class LiveFetcher:
                 "reddit_citizen_posts": len(reddit),
                 "nasa_eonet_satellites": len(nasa_eonet),
                 "gdacs_disaster_alerts": len(gdacs),
+                "mastodon_social": len(mastodon),
+                "reliefweb_disasters": len(reliefweb),
                 "newsapi_articles": len(newsapi),
                 "openweather_stations": len(owm),
                 "weatherapi_stations": len(weatherapi),
