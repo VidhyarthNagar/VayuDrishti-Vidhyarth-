@@ -3,11 +3,10 @@ Live Internet Weather & News Multi-Source Fetcher
 Ingests real-time data from:
 1. Google News IMD & Weather RSS Streams (Real-Time Live Web)
 2. Open-Meteo Live Atmospheric Station Grid for India (Real-Time Live Web)
-3. Reddit Indian Weather & IMD Streams (r/india, r/mumbai, r/delhi)
-4. NewsAPI.org (if API Key provided)
-5. OpenWeatherMap API (if API Key provided)
-6. WeatherAPI.com (if API Key provided)
-7. GNews.io API (if API Key provided)
+3. NewsAPI.org (if API Key provided)
+4. OpenWeatherMap API (Multi-City Live Telemetry)
+5. WeatherAPI.com (Live Indian Station Data)
+6. GNews.io API
 """
 import os
 import re
@@ -21,8 +20,6 @@ from ..config import DATA_DIR
 from ..ml_pipeline.pipeline import ingestion_pipeline
 
 logger = logging.getLogger("live_fetcher")
-
-# API Keys storage / cache
 CONFIG_FILE = DATA_DIR / "api_keys.json"
 
 def get_api_keys() -> Dict[str, str]:
@@ -46,8 +43,12 @@ def get_api_keys() -> Dict[str, str]:
 def save_api_keys(new_keys: Dict[str, str]):
     existing = get_api_keys()
     existing.update(new_keys)
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(existing, f, indent=2)
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(existing, f, indent=2)
+    except Exception:
+        pass
 
 class LiveFetcher:
     def __init__(self):
@@ -64,7 +65,6 @@ class LiveFetcher:
         return []
 
     def _match_city_and_state(self, text: str) -> Dict[str, Any]:
-        """Scans text to detect mentioned Indian city, state, or defaults to representative zone."""
         text_lower = text.lower()
         for city in self.cities:
             name = city["name"].lower()
@@ -73,14 +73,11 @@ class LiveFetcher:
                 return city
             if re.search(r'\b' + re.escape(state) + r'\b', text_lower):
                 return city
-
-        # Default to Mumbai or Delhi if no specific city matches
         return self.cities[0] if self.cities else {
             "name": "Delhi", "state": "Delhi", "district": "New Delhi", "lat": 28.6139, "lon": 77.2090
         }
 
     def fetch_google_news_rss(self, query: str = "IMD weather India monsoon rain flood cyclone", max_items: int = 15) -> List[Dict[str, Any]]:
-        """Fetches real-time live weather news articles across India from Google News RSS."""
         results = []
         try:
             url = f"https://news.google.com/rss/search?q={requests.utils.quote(query)}&hl=en-IN&gl=IN&ceid=IN:en"
@@ -94,14 +91,11 @@ class LiveFetcher:
             for item in items[:max_items]:
                 title = item.find("title").text if item.find("title") is not None else ""
                 link = item.find("link").text if item.find("link") is not None else ""
-                pubDate = item.find("pubDate").text if item.find("pubDate") is not None else ""
-
                 if not title:
                     continue
 
                 city_info = self._match_city_and_state(title)
 
-                # Assign realistic disaster image preview based on title keywords
                 img_url = "https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?w=800&auto=format&fit=crop&q=80"
                 if any(w in title.lower() for w in ["cyclone", "gale", "storm", "deep depression"]):
                     img_url = "https://images.unsplash.com/photo-1527482797697-8795b05a13fe?w=800&auto=format&fit=crop&q=80"
@@ -140,7 +134,6 @@ class LiveFetcher:
         return results
 
     def fetch_open_meteo_live_grid(self, max_cities: int = 10) -> List[Dict[str, Any]]:
-        """Fetches live meteorological telemetry across Indian cities with zero API key needed."""
         results = []
         selected_cities = self.cities[:max_cities]
 
@@ -215,13 +208,12 @@ class LiveFetcher:
         return results
 
     def fetch_newsapi_org(self, api_key: str, query: str = "IMD OR weather India OR monsoon OR cyclone") -> List[Dict[str, Any]]:
-        """Fetches from NewsAPI.org if user has an API key."""
         results = []
         if not api_key:
             return results
 
         try:
-            url = f"https://newsapi.org/v2/everything?q={requests.utils.quote(query)}&sortBy=publishedAt&pageSize=10&apiKey={api_key}"
+            url = f"https://newsapi.org/v2/everything?q={requests.utils.quote(query)}&sortBy=publishedAt&pageSize=12&apiKey={api_key}"
             res = requests.get(url, timeout=10)
             if res.status_code == 200:
                 data = res.json()
@@ -256,58 +248,127 @@ class LiveFetcher:
 
         return results
 
-    def fetch_openweathermap(self, api_key: str, city_name: str = "Mumbai") -> Optional[Dict[str, Any]]:
-        """Fetches from OpenWeatherMap API if key is provided."""
+    def fetch_openweathermap(self, api_key: str, cities: List[str] = None) -> List[Dict[str, Any]]:
+        """Fetches live meteorological metrics for multiple Indian cities from OpenWeatherMap API."""
+        results = []
         if not api_key:
-            return None
+            return results
 
-        try:
-            url = f"https://api.openweathermap.org/data/2.5/weather?q={city_name},IN&units=metric&appid={api_key}"
-            res = requests.get(url, timeout=10)
-            if res.status_code == 200:
-                data = res.json()
-                temp = data.get("main", {}).get("temp", 30)
-                weather_desc = data.get("weather", [{}])[0].get("description", "clear")
-                coord = data.get("coord", {})
-                
-                raw_report = {
-                    "source": "Public API",
-                    "author_handle": "@OpenWeatherMap",
-                    "author_name": "OpenWeather Global Telemetry",
-                    "author_trust_score": 0.95,
-                    "text": f"OpenWeather Real-Time Ingest: {city_name} reports {weather_desc}, temperature {temp}°C, humidity {data.get('main', {}).get('humidity')}% #IMD #{city_name}Weather",
-                    "hashtags": ["#IMD", f"#{city_name}Weather"],
-                    "city": city_name,
-                    "district": city_name,
-                    "state": "India",
-                    "lat": coord.get("lat", 19.0760),
-                    "lon": coord.get("lon", 72.8777),
-                    "media_type": "image",
-                    "media_url": "https://images.unsplash.com/photo-1534274988757-a28bf1a57c17?w=800&auto=format&fit=crop&q=80",
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                }
-                return ingestion_pipeline.process_raw_report(raw_report)
-        except Exception as e:
-            logger.error("OpenWeatherMap fetch error: %s", str(e))
-        return None
+        target_cities = cities or ["Mumbai", "Delhi", "Bengaluru", "Chennai", "Kolkata", "Hyderabad", "Ahmedabad", "Jaipur"]
 
-    def sync_all_live_sources(self) -> Dict[str, Any]:
+        for city_name in target_cities:
+            try:
+                url = f"https://api.openweathermap.org/data/2.5/weather?q={city_name},IN&units=metric&appid={api_key}"
+                res = requests.get(url, timeout=8)
+                if res.status_code == 200:
+                    data = res.json()
+                    temp = data.get("main", {}).get("temp", 30)
+                    humidity = data.get("main", {}).get("humidity", 60)
+                    wind_speed = data.get("wind", {}).get("speed", 3.5) * 3.6  # convert m/s to km/h
+                    weather_desc = data.get("weather", [{}])[0].get("description", "clear skies")
+                    coord = data.get("coord", {})
+                    city_info = self._match_city_and_state(city_name)
+
+                    raw_report = {
+                        "source": "Public API",
+                        "author_handle": f"@OpenWeather_{city_name}",
+                        "author_name": f"OpenWeather Global Station ({city_name})",
+                        "author_trust_score": 0.98,
+                        "text": f"OpenWeather Live Telemetry for {city_name}: {weather_desc.capitalize()}. Temperature: {temp}°C, Humidity: {humidity}%, Wind: {round(wind_speed, 1)} km/h. #IMD #{city_name}Weather",
+                        "hashtags": ["#IMD", f"#{city_name}Weather", "#LiveWeather"],
+                        "city": city_name,
+                        "district": city_info.get("district", city_name),
+                        "state": city_info.get("state", "India"),
+                        "lat": coord.get("lat", city_info["lat"]),
+                        "lon": coord.get("lon", city_info["lon"]),
+                        "media_type": "image",
+                        "media_url": "https://images.unsplash.com/photo-1534274988757-a28bf1a57c17?w=800&auto=format&fit=crop&q=80",
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    }
+                    processed = ingestion_pipeline.process_raw_report(raw_report)
+                    results.append(processed)
+            except Exception as e:
+                logger.error("OpenWeatherMap fetch error for %s: %s", city_name, str(e))
+
+        return results
+
+    def fetch_weatherapi_com(self, api_key: str, cities: List[str] = None) -> List[Dict[str, Any]]:
+        """Fetches from WeatherAPI.com if key is provided."""
+        results = []
+        if not api_key:
+            return results
+
+        target_cities = cities or ["Mumbai", "Delhi", "Bengaluru", "Chennai", "Kolkata"]
+        for city_name in target_cities:
+            try:
+                url = f"https://api.weatherapi.com/v1/current.json?key={api_key}&q={city_name},India&aqi=yes"
+                res = requests.get(url, timeout=8)
+                if res.status_code == 200:
+                    data = res.json()
+                    curr = data.get("current", {})
+                    condition = curr.get("condition", {}).get("text", "Clear")
+                    temp = curr.get("temp_c", 30)
+                    humidity = curr.get("humidity", 60)
+                    wind = curr.get("wind_kph", 10)
+                    city_info = self._match_city_and_state(city_name)
+
+                    raw_report = {
+                        "source": "Public API",
+                        "author_handle": f"@WeatherAPI_{city_name}",
+                        "author_name": f"WeatherAPI Station ({city_name})",
+                        "author_trust_score": 0.98,
+                        "text": f"WeatherAPI Real-Time Telemetry for {city_name}: {condition}. Temp: {temp}°C, Humidity: {humidity}%, Wind: {wind} km/h. #IMD #{city_name}Weather",
+                        "hashtags": ["#IMD", f"#{city_name}Weather"],
+                        "city": city_name,
+                        "district": city_info.get("district", city_name),
+                        "state": city_info.get("state", "India"),
+                        "lat": city_info["lat"],
+                        "lon": city_info["lon"],
+                        "media_type": "image",
+                        "media_url": "https://images.unsplash.com/photo-1534274988757-a28bf1a57c17?w=800&auto=format&fit=crop&q=80",
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    }
+                    processed = ingestion_pipeline.process_raw_report(raw_report)
+                    results.append(processed)
+            except Exception as e:
+                logger.error("WeatherAPI fetch error for %s: %s", city_name, str(e))
+
+        return results
+
+    def sync_all_live_sources(self, custom_keys: Dict[str, str] = None) -> Dict[str, Any]:
         """Syncs all available live feeds from web, RSS, Open-Meteo, and custom API keys."""
         keys = get_api_keys()
+        if custom_keys:
+            keys.update(custom_keys)
+
         news_rss = self.fetch_google_news_rss()
-        telemetry = self.fetch_open_meteo_live_grid(max_cities=8)
+        telemetry = self.fetch_open_meteo_live_grid(max_cities=10)
         
         custom_news = []
         if keys.get("NEWS_API_KEY"):
             custom_news = self.fetch_newsapi_org(keys["NEWS_API_KEY"])
 
-        total_synced = len(news_rss) + len(telemetry) + len(custom_news)
+        openweather_reports = []
+        if keys.get("OPENWEATHER_API_KEY"):
+            openweather_reports = self.fetch_openweathermap(keys["OPENWEATHER_API_KEY"])
+
+        weatherapi_reports = []
+        if keys.get("WEATHERAPI_KEY"):
+            weatherapi_reports = self.fetch_weatherapi_com(keys["WEATHERAPI_KEY"])
+
+        total_synced = len(news_rss) + len(telemetry) + len(custom_news) + len(openweather_reports) + len(weatherapi_reports)
+        
+        all_new_reports = news_rss + telemetry + custom_news + openweather_reports + weatherapi_reports
+
         return {
             "success": True,
             "total_synced": total_synced,
             "google_news_articles": len(news_rss),
             "open_meteo_telemetry_stations": len(telemetry),
-            "custom_api_articles": len(custom_news),
+            "openweather_stations": len(openweather_reports),
+            "newsapi_articles": len(custom_news),
+            "weatherapi_stations": len(weatherapi_reports),
+            "reports": all_new_reports[:25],
             "synced_at": datetime.now(timezone.utc).isoformat()
         }
 

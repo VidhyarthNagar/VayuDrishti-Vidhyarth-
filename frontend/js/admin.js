@@ -7,7 +7,7 @@ class AdminPortal {
   constructor() {
     this.pendingReports = [];
     this.auditLogs = [];
-    this.token = sessionStorage.getItem('vayu_admin_token') || '';
+    this.token = localStorage.getItem('vayu_admin_token') || sessionStorage.getItem('vayu_admin_token') || '';
     this.init();
   }
 
@@ -18,6 +18,14 @@ class AdminPortal {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
     return headers;
+  }
+
+  getSavedApiKeys() {
+    try {
+      return JSON.parse(localStorage.getItem('vayu_api_keys') || '{}');
+    } catch (e) {
+      return {};
+    }
   }
 
   async init() {
@@ -47,6 +55,7 @@ class AdminPortal {
       console.error('Session check failed:', e);
     }
     this.token = '';
+    localStorage.removeItem('vayu_admin_token');
     sessionStorage.removeItem('vayu_admin_token');
     return false;
   }
@@ -95,6 +104,7 @@ class AdminPortal {
 
           if (res.ok && data.success) {
             this.token = data.token;
+            localStorage.setItem('vayu_admin_token', data.token);
             sessionStorage.setItem('vayu_admin_token', data.token);
             this.showToast('✓ Authentication Successful. Command Access Granted.');
             this.showCommandView();
@@ -126,6 +136,7 @@ class AdminPortal {
     if (logoutBtn) {
       logoutBtn.addEventListener('click', () => {
         this.token = '';
+        localStorage.removeItem('vayu_admin_token');
         sessionStorage.removeItem('vayu_admin_token');
         this.showToast('🔒 Operator logged out.');
         this.showAuthGate();
@@ -164,6 +175,26 @@ class AdminPortal {
   }
 
   async loadApiKeys() {
+    // 1. Restore cached keys from localStorage immediately
+    const cached = this.getSavedApiKeys();
+    if (cached.OPENWEATHER_API_KEY) {
+      document.getElementById('input-openweather-key').value = cached.OPENWEATHER_API_KEY;
+      document.getElementById('text-openweather-status').innerText = 'Connected';
+      document.getElementById('text-openweather-status').style.color = 'var(--accent-emerald)';
+    }
+    if (cached.NEWS_API_KEY) {
+      document.getElementById('input-newsapi-key').value = cached.NEWS_API_KEY;
+      document.getElementById('text-newsapi-status').innerText = 'Connected';
+      document.getElementById('text-newsapi-status').style.color = 'var(--accent-emerald)';
+    }
+    if (cached.WEATHERAPI_KEY) {
+      document.getElementById('input-weatherapi-key').value = cached.WEATHERAPI_KEY;
+    }
+    if (cached.GNEWS_API_KEY) {
+      document.getElementById('input-gnews-key').value = cached.GNEWS_API_KEY;
+    }
+
+    // 2. Fetch configured keys from server
     try {
       const res = await fetch('/api/admin/api-keys', {
         headers: this.getAuthHeaders()
@@ -172,24 +203,22 @@ class AdminPortal {
       const data = await res.json();
       if (data && data.keys) {
         if (data.keys.OPENWEATHER_API_KEY && data.keys.OPENWEATHER_API_KEY !== 'Not Set') {
-          document.getElementById('input-openweather-key').value = data.keys.OPENWEATHER_API_KEY;
+          if (!document.getElementById('input-openweather-key').value) {
+            document.getElementById('input-openweather-key').value = data.keys.OPENWEATHER_API_KEY;
+          }
           document.getElementById('text-openweather-status').innerText = 'Connected';
           document.getElementById('text-openweather-status').style.color = 'var(--accent-emerald)';
         }
         if (data.keys.NEWS_API_KEY && data.keys.NEWS_API_KEY !== 'Not Set') {
-          document.getElementById('input-newsapi-key').value = data.keys.NEWS_API_KEY;
+          if (!document.getElementById('input-newsapi-key').value) {
+            document.getElementById('input-newsapi-key').value = data.keys.NEWS_API_KEY;
+          }
           document.getElementById('text-newsapi-status').innerText = 'Connected';
           document.getElementById('text-newsapi-status').style.color = 'var(--accent-emerald)';
         }
-        if (data.keys.WEATHERAPI_KEY && data.keys.WEATHERAPI_KEY !== 'Not Set') {
-          document.getElementById('input-weatherapi-key').value = data.keys.WEATHERAPI_KEY;
-        }
-        if (data.keys.GNEWS_API_KEY && data.keys.GNEWS_API_KEY !== 'Not Set') {
-          document.getElementById('input-gnews-key').value = data.keys.GNEWS_API_KEY;
-        }
       }
     } catch (e) {
-      console.error('Error loading API keys:', e);
+      console.error('Error loading API keys from server:', e);
     }
   }
 
@@ -200,14 +229,22 @@ class AdminPortal {
       btn.innerText = '🌐 Fetching Live Internet Streams...';
     }
 
+    const payload = this.getSavedApiKeys();
+
     try {
       const res = await fetch('/api/admin/sync-live-apis', {
         method: 'POST',
-        headers: this.getAuthHeaders()
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data.success) {
-        this.showToast(`✓ Live Sync Complete! Ingested ${data.total_synced} real-time reports (${data.google_news_articles} live news + ${data.open_meteo_telemetry_stations} AWS stations).`);
+        let details = `Ingested ${data.total_synced} real-time reports (${data.google_news_articles} live news + ${data.open_meteo_telemetry_stations} AWS stations`;
+        if (data.openweather_stations) details += ` + ${data.openweather_stations} OpenWeather stations`;
+        if (data.newsapi_articles) details += ` + ${data.newsapi_articles} NewsAPI press`;
+        details += `).`;
+
+        this.showToast(`✓ Live Sync Complete! ${details}`);
         await this.fetchModerationQueue();
       }
     } catch (e) {
@@ -354,6 +391,9 @@ class AdminPortal {
           WEATHERAPI_KEY: document.getElementById('input-weatherapi-key').value.trim(),
           GNEWS_API_KEY: document.getElementById('input-gnews-key').value.trim()
         };
+        // Save to browser localStorage so keys are persistent across page refreshes
+        localStorage.setItem('vayu_api_keys', JSON.stringify(payload));
+
         try {
           const res = await fetch('/api/admin/api-keys', {
             method: 'POST',
@@ -362,11 +402,12 @@ class AdminPortal {
           });
           const data = await res.json();
           if (data.success) {
-            this.showToast('💾 API Keys securely saved and active.');
+            this.showToast('💾 API Keys securely saved and active across browser sessions.');
             await this.loadApiKeys();
           }
         } catch (err) {
-          console.error('Error saving API keys:', err);
+          console.error('Error saving API keys to server:', err);
+          this.showToast('💾 API Keys saved locally in browser.');
         }
       };
     }

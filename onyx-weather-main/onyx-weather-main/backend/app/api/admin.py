@@ -138,9 +138,21 @@ def update_api_keys(req: ApiKeysUpdateRequest, auth: bool = Depends(verify_admin
     save_api_keys(updates)
     return {"success": True, "message": "API keys successfully updated and saved."}
 
+class SyncLiveApisRequest(BaseModel):
+    OPENWEATHER_API_KEY: Optional[str] = None
+    NEWS_API_KEY: Optional[str] = None
+    WEATHERAPI_KEY: Optional[str] = None
+    GNEWS_API_KEY: Optional[str] = None
+
 @router.post("/sync-live-apis")
-def sync_live_apis_endpoint(auth: bool = Depends(verify_admin)):
-    result = live_fetcher.sync_all_live_sources()
+def sync_live_apis_endpoint(req: Optional[SyncLiveApisRequest] = None, auth: bool = Depends(verify_admin)):
+    custom_keys = {}
+    if req:
+        if req.OPENWEATHER_API_KEY: custom_keys["OPENWEATHER_API_KEY"] = req.OPENWEATHER_API_KEY.strip()
+        if req.NEWS_API_KEY: custom_keys["NEWS_API_KEY"] = req.NEWS_API_KEY.strip()
+        if req.WEATHERAPI_KEY: custom_keys["WEATHERAPI_KEY"] = req.WEATHERAPI_KEY.strip()
+        if req.GNEWS_API_KEY: custom_keys["GNEWS_API_KEY"] = req.GNEWS_API_KEY.strip()
+    result = live_fetcher.sync_all_live_sources(custom_keys)
     return result
 
 class ModerationActionRequest(BaseModel):

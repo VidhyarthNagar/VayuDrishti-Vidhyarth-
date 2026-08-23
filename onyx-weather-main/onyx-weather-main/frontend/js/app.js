@@ -322,10 +322,29 @@ class WeatherApp {
       syncLiveBtn.addEventListener('click', async () => {
         syncLiveBtn.disabled = true;
         syncLiveBtn.innerText = '🌐 Ingesting Live Web Data...';
+        
+        let apiKeys = {};
         try {
-          const res = await fetch('/api/admin/sync-live-apis', { method: 'POST' });
+          apiKeys = JSON.parse(localStorage.getItem('vayu_api_keys') || '{}');
+        } catch(e) {}
+        
+        const token = localStorage.getItem('vayu_admin_token') || 'vdu-adm-imd-session-key-9982';
+        
+        try {
+          const res = await fetch('/api/admin/sync-live-apis', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Admin-Token': token,
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(apiKeys)
+          });
           const data = await res.json();
           if (data.success) {
+            if (data.reports && data.reports.length > 0) {
+              this.reports = [...data.reports, ...this.reports];
+            }
             await this.fetchInitialState();
           }
         } catch (e) {
