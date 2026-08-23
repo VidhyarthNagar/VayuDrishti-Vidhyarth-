@@ -20,35 +20,20 @@ router = APIRouter(prefix="/api/admin", tags=["Admin"])
 AUTH_FILE = (Path("/tmp") if IS_SERVERLESS else DATA_DIR) / "admin_auth.json"
 RENDER_BACKEND_URL = os.environ.get("RENDER_BACKEND_URL", "").rstrip("/")
 
-def _generate_first_run_password() -> str:
-    """Generate a cryptographically secure random password shown ONCE in startup logs."""
-    import secrets, string
-    alphabet = string.ascii_letters + string.digits + "!@#$"
-    pw = ''.join(secrets.choice(alphabet) for _ in range(16))
-    print("=" * 60)
-    print("  VayuDrishti FIRST-RUN SETUP")
-    print(f"  Admin Password (save this — shown only once!):")
-    print(f"  >> {pw} <<")
-    print("=" * 60)
-    return pw
-
 def get_current_admin_credentials() -> Dict[str, str]:
     """
-    Returns the current admin credentials.
-    - On serverless (Vercel): always proxies to Render, so env vars are used only as fallback
-    - On persistent (Render): reads from auth file, generates password on first run
+    Returns current admin credentials.
+    Priority: saved auth file > env var defaults
+    On Vercel (serverless): login is proxied to Render, so defaults are irrelevant.
     """
     creds = {
         "username": ADMIN_USERNAME,
         "password": ADMIN_DEFAULT_PASSWORD,
         "token": ADMIN_TOKEN
     }
-
     if IS_SERVERLESS:
-        # Vercel: login is proxied to Render, so just return defaults — actual auth happens on Render
-        return creds
+        return creds  # Vercel proxies all /api/admin calls to Render anyway
 
-    # Persistent server (Render): read saved password from file
     if AUTH_FILE.exists():
         try:
             with open(AUTH_FILE, "r", encoding="utf-8") as f:
@@ -58,23 +43,16 @@ def get_current_admin_credentials() -> Dict[str, str]:
                 if saved.get("token"): creds["token"] = saved["token"]
         except Exception:
             pass
-    elif creds["password"] == "__GENERATE_ON_FIRST_RUN__":
-        # First ever run — generate and save a random password
-        generated_pw = _generate_first_run_password()
-        creds["password"] = generated_pw
-        save_admin_credentials(creds["username"], generated_pw)
-
     return creds
 
 def save_admin_credentials(username: str, password: str):
-    """Save admin credentials. No-op on Vercel (serverless) — changes are proxied to Render."""
+    """Save credentials to disk. No-op on Vercel — all admin calls proxy to Render."""
     if IS_SERVERLESS:
         return
-    creds = {"username": username, "password": password, "token": ADMIN_TOKEN}
     try:
         AUTH_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(AUTH_FILE, "w", encoding="utf-8") as f:
-            json.dump(creds, f, indent=2)
+            json.dump({"username": username, "password": password, "token": ADMIN_TOKEN}, f, indent=2)
     except Exception as e:
         print(f"Auth save error: {e}")
 
