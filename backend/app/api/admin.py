@@ -1,18 +1,118 @@
 """
 Admin Command Center & Moderation API Router
-Handles manual verification workflows, CAP emergency broadcasts, simulation triggers, and audit logs.
+Handles role-based security authentication, manual moderation, CAP emergency broadcasts, simulation triggers, and audit logs.
 """
+import os
 import uuid
 import json
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header, Depends, status
+from ..config import DATA_DIR, ADMIN_USERNAME, ADMIN_DEFAULT_PASSWORD, ADMIN_TOKEN
 from ..database import get_db_connection
 from ..ingestion.generator import scenario_generator
 from ..ingestion.live_fetcher import live_fetcher, get_api_keys, save_api_keys
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
+
+AUTH_FILE = DATA_DIR / "admin_auth.json"
+
+def get_current_admin_credentials() -> Dict[str, str]:
+    creds = {
+        "username": ADMIN_USERNAME,
+        "password": ADMIN_DEFAULT_PASSWORD,
+        "token": ADMIN_TOKEN
+    }
+    if AUTH_FILE.exists():
+        try:
+            with open(AUTH_FILE, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+                if saved.get("password"): creds["password"] = saved["password"]
+                if saved.get("username"): creds["username"] = saved["username"]
+                if saved.get("token"): creds["token"] = saved["token"]
+        except Exception:
+            pass
+    return creds
+
+def save_admin_credentials(username: str, password: str):
+    creds = get_current_admin_credentials()
+    creds["username"] = username
+    creds["password"] = password
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        with open(AUTH_FILE, "w", encoding="utf-8") as f:
+            json.dump(creds, f, indent=2)
+    except Exception:
+        pass
+
+def verify_admin(
+    x_admin_token: Optional[str] = Header(None, alias="X-Admin-Token"),
+    authorization: Optional[str] = Header(None, alias="Authorization")
+):
+    """FastAPI Dependency: verifies administrative session token."""
+    creds = get_current_admin_credentials()
+    valid_token = creds["token"]
+
+    token_candidate = None
+    if x_admin_token:
+        token_candidate = x_admin_token.strip()
+    elif authorization and authorization.startswith("Bearer "):
+        token_candidate = authorization.split("Bearer ", 1)[1].strip()
+
+    if not token_candidate or token_candidate != valid_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Access Denied: Administrative authentication token required.",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    return True
+
+# --- Authentication Endpoints ---
+
+class AdminLoginRequest(BaseModel):
+    username: Optional[str] = None
+    password: Optional[str] = None
+    passcode: Optional[str] = None
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+@router.post("/login")
+def admin_login(req: AdminLoginRequest):
+    creds = get_current_admin_credentials()
+    input_pass = req.password or req.passcode or ""
+    input_user = req.username or "admin"
+
+    if input_pass == creds["password"] and (input_user == creds["username"] or not req.username):
+        return {
+            "success": True,
+            "token": creds["token"],
+            "admin_user": "IMD_Operations_HQ",
+            "message": "Administrative authentication successful."
+        }
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid administrative username or security passcode."
+    )
+
+@router.get("/verify-session")
+def verify_session(auth: bool = Depends(verify_admin)):
+    return {"valid": True, "user": "IMD_Operations_HQ"}
+
+@router.post("/change-password")
+def change_password(req: ChangePasswordRequest, auth: bool = Depends(verify_admin)):
+    creds = get_current_admin_credentials()
+    if req.old_password != creds["password"]:
+        raise HTTPException(status_code=400, detail="Current password incorrect.")
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters.")
+    
+    save_admin_credentials(creds["username"], req.new_password)
+    return {"success": True, "message": "Admin password updated successfully."}
+
+# --- Protected Admin Operations ---
 
 class ApiKeysUpdateRequest(BaseModel):
     OPENWEATHER_API_KEY: Optional[str] = None
@@ -21,16 +121,15 @@ class ApiKeysUpdateRequest(BaseModel):
     GNEWS_API_KEY: Optional[str] = None
 
 @router.get("/api-keys")
-def get_configured_api_keys():
+def get_configured_api_keys(auth: bool = Depends(verify_admin)):
     keys = get_api_keys()
-    # Mask keys for security
     masked = {}
     for k, v in keys.items():
         masked[k] = (v[:4] + "..." + v[-4:]) if len(v) > 8 else ("Configured" if v else "Not Set")
     return {"keys": masked, "raw_status": {k: bool(v) for k, v in keys.items()}}
 
 @router.post("/api-keys")
-def update_api_keys(req: ApiKeysUpdateRequest):
+def update_api_keys(req: ApiKeysUpdateRequest, auth: bool = Depends(verify_admin)):
     updates = {}
     if req.OPENWEATHER_API_KEY is not None: updates["OPENWEATHER_API_KEY"] = req.OPENWEATHER_API_KEY.strip()
     if req.NEWS_API_KEY is not None: updates["NEWS_API_KEY"] = req.NEWS_API_KEY.strip()
@@ -40,7 +139,7 @@ def update_api_keys(req: ApiKeysUpdateRequest):
     return {"success": True, "message": "API keys successfully updated and saved."}
 
 @router.post("/sync-live-apis")
-def sync_live_apis_endpoint():
+def sync_live_apis_endpoint(auth: bool = Depends(verify_admin)):
     result = live_fetcher.sync_all_live_sources()
     return result
 
@@ -54,7 +153,7 @@ class ModerationActionRequest(BaseModel):
 class EmergencyAlertRequest(BaseModel):
     title: str
     event_type: str
-    severity: str # 'Advisory', 'Watch', 'Warning', 'Red Alert Emergency'
+    severity: str
     state: str
     districts: List[str]
     instructions: str
@@ -62,10 +161,10 @@ class EmergencyAlertRequest(BaseModel):
     valid_hours: int = 24
 
 class TriggerScenarioRequest(BaseModel):
-    scenario: str # 'cyclone_landfall', 'mumbai_cloudburst', 'delhi_severe_smog', 'random'
+    scenario: str
 
 @router.post("/moderate")
-def moderate_report(req: ModerationActionRequest):
+def moderate_report(req: ModerationActionRequest, auth: bool = Depends(verify_admin)):
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -128,7 +227,7 @@ def moderate_report(req: ModerationActionRequest):
     }
 
 @router.post("/broadcast-alert")
-def broadcast_emergency_alert(req: EmergencyAlertRequest):
+def broadcast_emergency_alert(req: EmergencyAlertRequest, auth: bool = Depends(verify_admin)):
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -179,7 +278,7 @@ def get_active_alerts():
     return {"alerts": rows}
 
 @router.post("/trigger-scenario")
-def trigger_scenario(req: TriggerScenarioRequest):
+def trigger_scenario(req: TriggerScenarioRequest, auth: bool = Depends(verify_admin)):
     generated = scenario_generator.trigger_scenario(req.scenario)
     return {
         "success": True,
@@ -189,7 +288,7 @@ def trigger_scenario(req: TriggerScenarioRequest):
     }
 
 @router.get("/moderation-logs")
-def get_moderation_logs(limit: int = 50):
+def get_moderation_logs(limit: int = 50, auth: bool = Depends(verify_admin)):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM moderation_logs ORDER BY timestamp DESC LIMIT ?;", (limit,))

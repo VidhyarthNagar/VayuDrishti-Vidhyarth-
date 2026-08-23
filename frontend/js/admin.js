@@ -1,23 +1,143 @@
 /**
  * Admin Command Center & Moderation Controller
+ * Secured with Role-Based Access Control (RBAC) & Session Verification
  */
 
 class AdminPortal {
   constructor() {
     this.pendingReports = [];
     this.auditLogs = [];
+    this.token = sessionStorage.getItem('vayu_admin_token') || '';
     this.init();
   }
 
+  getAuthHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    if (this.token) {
+      headers['X-Admin-Token'] = this.token;
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+    return headers;
+  }
+
   async init() {
-    await this.fetchModerationQueue();
-    await this.fetchAuditLogs();
-    this.bindEvents();
+    this.bindAuthEvents();
+    const isAuthed = await this.checkSession();
+    if (isAuthed) {
+      this.showCommandView();
+      await this.fetchModerationQueue();
+      await this.fetchAuditLogs();
+      await this.loadApiKeys();
+      this.bindCommandEvents();
+    } else {
+      this.showAuthGate();
+    }
+  }
+
+  async checkSession() {
+    if (!this.token) return false;
+    try {
+      const res = await fetch('/api/admin/verify-session', {
+        headers: this.getAuthHeaders()
+      });
+      if (res.status === 200) {
+        return true;
+      }
+    } catch (e) {
+      console.error('Session check failed:', e);
+    }
+    this.token = '';
+    sessionStorage.removeItem('vayu_admin_token');
+    return false;
+  }
+
+  showAuthGate() {
+    const gate = document.getElementById('admin-auth-gate');
+    const view = document.getElementById('admin-command-view');
+    const controls = document.getElementById('admin-session-controls');
+    if (gate) gate.style.display = 'block';
+    if (view) view.style.display = 'none';
+    if (controls) controls.style.display = 'none';
+  }
+
+  showCommandView() {
+    const gate = document.getElementById('admin-auth-gate');
+    const view = document.getElementById('admin-command-view');
+    const controls = document.getElementById('admin-session-controls');
+    if (gate) gate.style.display = 'none';
+    if (view) view.style.display = 'block';
+    if (controls) controls.style.display = 'flex';
+  }
+
+  bindAuthEvents() {
+    const loginForm = document.getElementById('form-admin-login');
+    if (loginForm) {
+      loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('login-username').value.trim();
+        const password = document.getElementById('login-password').value.trim();
+        const alertBox = document.getElementById('login-error-alert');
+        const submitBtn = document.getElementById('btn-submit-login');
+
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerText = 'Verifying Passcode...';
+        }
+        if (alertBox) alertBox.style.display = 'none';
+
+        try {
+          const res = await fetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+          });
+          const data = await res.json();
+
+          if (res.ok && data.success) {
+            this.token = data.token;
+            sessionStorage.setItem('vayu_admin_token', data.token);
+            this.showToast('✓ Authentication Successful. Command Access Granted.');
+            this.showCommandView();
+            await this.fetchModerationQueue();
+            await this.fetchAuditLogs();
+            await this.loadApiKeys();
+            this.bindCommandEvents();
+          } else {
+            if (alertBox) {
+              alertBox.innerText = data.detail || 'Access Denied: Invalid passcode.';
+              alertBox.style.display = 'block';
+            }
+          }
+        } catch (err) {
+          if (alertBox) {
+            alertBox.innerText = 'Authentication error. Please retry.';
+            alertBox.style.display = 'block';
+          }
+        } finally {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerText = '🛡️ Authorize & Enter Command Center';
+          }
+        }
+      });
+    }
+
+    const logoutBtn = document.getElementById('btn-admin-logout');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', () => {
+        this.token = '';
+        sessionStorage.removeItem('vayu_admin_token');
+        this.showToast('🔒 Operator logged out.');
+        this.showAuthGate();
+      });
+    }
   }
 
   async fetchModerationQueue() {
     try {
-      const res = await fetch('/api/reports?status=under_review,fake_misleading&limit=50');
+      const res = await fetch('/api/reports?status=under_review,fake_misleading&limit=50', {
+        headers: this.getAuthHeaders()
+      });
       const data = await res.json();
       this.pendingReports = data.reports || [];
       this.renderQueue();
@@ -28,12 +148,76 @@ class AdminPortal {
 
   async fetchAuditLogs() {
     try {
-      const res = await fetch('/api/admin/moderation-logs?limit=25');
+      const res = await fetch('/api/admin/moderation-logs?limit=25', {
+        headers: this.getAuthHeaders()
+      });
+      if (res.status === 401) {
+        this.showAuthGate();
+        return;
+      }
       const data = await res.json();
       this.auditLogs = data.logs || [];
       this.renderAuditLogs();
     } catch (e) {
       console.error('Error fetching audit logs:', e);
+    }
+  }
+
+  async loadApiKeys() {
+    try {
+      const res = await fetch('/api/admin/api-keys', {
+        headers: this.getAuthHeaders()
+      });
+      if (res.status === 401) return;
+      const data = await res.json();
+      if (data && data.keys) {
+        if (data.keys.OPENWEATHER_API_KEY && data.keys.OPENWEATHER_API_KEY !== 'Not Set') {
+          document.getElementById('input-openweather-key').value = data.keys.OPENWEATHER_API_KEY;
+          document.getElementById('text-openweather-status').innerText = 'Connected';
+          document.getElementById('text-openweather-status').style.color = 'var(--accent-emerald)';
+        }
+        if (data.keys.NEWS_API_KEY && data.keys.NEWS_API_KEY !== 'Not Set') {
+          document.getElementById('input-newsapi-key').value = data.keys.NEWS_API_KEY;
+          document.getElementById('text-newsapi-status').innerText = 'Connected';
+          document.getElementById('text-newsapi-status').style.color = 'var(--accent-emerald)';
+        }
+        if (data.keys.WEATHERAPI_KEY && data.keys.WEATHERAPI_KEY !== 'Not Set') {
+          document.getElementById('input-weatherapi-key').value = data.keys.WEATHERAPI_KEY;
+        }
+        if (data.keys.GNEWS_API_KEY && data.keys.GNEWS_API_KEY !== 'Not Set') {
+          document.getElementById('input-gnews-key').value = data.keys.GNEWS_API_KEY;
+        }
+      }
+    } catch (e) {
+      console.error('Error loading API keys:', e);
+    }
+  }
+
+  async syncLiveApis() {
+    const btn = document.getElementById('btn-sync-live-apis');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = '🌐 Fetching Live Internet Streams...';
+    }
+
+    try {
+      const res = await fetch('/api/admin/sync-live-apis', {
+        method: 'POST',
+        headers: this.getAuthHeaders()
+      });
+      const data = await res.json();
+      if (data.success) {
+        this.showToast(`✓ Live Sync Complete! Ingested ${data.total_synced} real-time reports (${data.google_news_articles} live news + ${data.open_meteo_telemetry_stations} AWS stations).`);
+        await this.fetchModerationQueue();
+      }
+    } catch (e) {
+      console.error('Error syncing live APIs:', e);
+      this.showToast('Error syncing live feeds.');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = '🔄 Sync Live Internet Data Now';
+      }
     }
   }
 
@@ -128,7 +312,7 @@ class AdminPortal {
     try {
       const res = await fetch('/api/admin/moderate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getAuthHeaders(),
         body: JSON.stringify({
           report_id: reportId,
           action: action,
@@ -136,6 +320,11 @@ class AdminPortal {
           reason: `Action executed via Admin Command Workbench (${action})`
         })
       });
+      if (res.status === 401) {
+        this.showToast('Session expired. Please re-authenticate.');
+        this.showAuthGate();
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         this.showToast(`Action "${action.toUpperCase()}" applied to report ${reportId}`);
@@ -147,76 +336,17 @@ class AdminPortal {
     }
   }
 
-  async init() {
-    await this.fetchModerationQueue();
-    await this.fetchAuditLogs();
-    await this.loadApiKeys();
-    this.bindEvents();
-  }
-
-  async loadApiKeys() {
-    try {
-      const res = await fetch('/api/admin/api-keys');
-      const data = await res.json();
-      if (data && data.keys) {
-        if (data.keys.OPENWEATHER_API_KEY && data.keys.OPENWEATHER_API_KEY !== 'Not Set') {
-          document.getElementById('input-openweather-key').value = data.keys.OPENWEATHER_API_KEY;
-          document.getElementById('text-openweather-status').innerText = 'Connected';
-          document.getElementById('text-openweather-status').style.color = 'var(--accent-emerald)';
-        }
-        if (data.keys.NEWS_API_KEY && data.keys.NEWS_API_KEY !== 'Not Set') {
-          document.getElementById('input-newsapi-key').value = data.keys.NEWS_API_KEY;
-          document.getElementById('text-newsapi-status').innerText = 'Connected';
-          document.getElementById('text-newsapi-status').style.color = 'var(--accent-emerald)';
-        }
-        if (data.keys.WEATHERAPI_KEY && data.keys.WEATHERAPI_KEY !== 'Not Set') {
-          document.getElementById('input-weatherapi-key').value = data.keys.WEATHERAPI_KEY;
-        }
-        if (data.keys.GNEWS_API_KEY && data.keys.GNEWS_API_KEY !== 'Not Set') {
-          document.getElementById('input-gnews-key').value = data.keys.GNEWS_API_KEY;
-        }
-      }
-    } catch (e) {
-      console.error('Error loading API keys:', e);
-    }
-  }
-
-  async syncLiveApis() {
-    const btn = document.getElementById('btn-sync-live-apis');
-    if (btn) {
-      btn.disabled = true;
-      btn.innerText = '🌐 Fetching Live Internet Streams...';
-    }
-
-    try {
-      const res = await fetch('/api/admin/sync-live-apis', { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        this.showToast(`✓ Live Sync Complete! Ingested ${data.total_synced} real-time reports (${data.google_news_articles} live news + ${data.open_meteo_telemetry_stations} AWS stations).`);
-        await this.fetchModerationQueue();
-      }
-    } catch (e) {
-      console.error('Error syncing live APIs:', e);
-      this.showToast('Error syncing live feeds.');
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerText = '🔄 Sync Live Internet Data Now';
-      }
-    }
-  }
-
-  bindEvents() {
+  bindCommandEvents() {
     // Live API Sync Button
     const syncBtn = document.getElementById('btn-sync-live-apis');
     if (syncBtn) {
-      syncBtn.addEventListener('click', () => this.syncLiveApis());
+      syncBtn.onclick = () => this.syncLiveApis();
     }
 
     // API Keys Form
     const apiKeysForm = document.getElementById('form-api-keys');
     if (apiKeysForm) {
-      apiKeysForm.addEventListener('submit', async (e) => {
+      apiKeysForm.onsubmit = async (e) => {
         e.preventDefault();
         const payload = {
           OPENWEATHER_API_KEY: document.getElementById('input-openweather-key').value.trim(),
@@ -227,7 +357,7 @@ class AdminPortal {
         try {
           const res = await fetch('/api/admin/api-keys', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: this.getAuthHeaders(),
             body: JSON.stringify(payload)
           });
           const data = await res.json();
@@ -238,13 +368,39 @@ class AdminPortal {
         } catch (err) {
           console.error('Error saving API keys:', err);
         }
-      });
+      };
+    }
+
+    // Change Password Form
+    const passForm = document.getElementById('form-change-password');
+    if (passForm) {
+      passForm.onsubmit = async (e) => {
+        e.preventDefault();
+        const old_password = document.getElementById('input-current-passcode').value.trim();
+        const new_password = document.getElementById('input-new-passcode').value.trim();
+        try {
+          const res = await fetch('/api/admin/change-password', {
+            method: 'POST',
+            headers: this.getAuthHeaders(),
+            body: JSON.stringify({ old_password, new_password })
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            this.showToast('🔑 Admin security passcode updated.');
+            passForm.reset();
+          } else {
+            this.showToast(data.detail || 'Password update failed.');
+          }
+        } catch (err) {
+          console.error('Password change error:', err);
+        }
+      };
     }
 
     // CAP Alert Broadcast Form
     const alertForm = document.getElementById('form-cap-alert');
     if (alertForm) {
-      alertForm.addEventListener('submit', async (e) => {
+      alertForm.onsubmit = async (e) => {
         e.preventDefault();
         const payload = {
           title: document.getElementById('alert-title').value,
@@ -259,7 +415,7 @@ class AdminPortal {
         try {
           const res = await fetch('/api/admin/broadcast-alert', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: this.getAuthHeaders(),
             body: JSON.stringify(payload)
           });
           const data = await res.json();
@@ -270,17 +426,17 @@ class AdminPortal {
         } catch (err) {
           console.error('Error broadcasting alert:', err);
         }
-      });
+      };
     }
 
     // Disaster Scenario Trigger Buttons
     document.querySelectorAll('.btn-scenario').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
+      btn.onclick = async (e) => {
         const scenario = e.currentTarget.dataset.scenario;
         try {
           const res = await fetch('/api/admin/trigger-scenario', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: this.getAuthHeaders(),
             body: JSON.stringify({ scenario: scenario })
           });
           const data = await res.json();
@@ -291,7 +447,7 @@ class AdminPortal {
         } catch (err) {
           console.error('Scenario trigger error:', err);
         }
-      });
+      };
     });
   }
 

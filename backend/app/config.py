@@ -29,3 +29,8 @@ FAKE_PROBABILITY_THRESHOLD = 0.65  # Flag if >= 0.65
 # Server Configuration
 HOST = "0.0.0.0"
 PORT = 8080
+
+# Administrative Security & RBAC Configuration
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
+ADMIN_DEFAULT_PASSWORD = os.environ.get("ADMIN_PASSWORD", "IMD@Admin2026")
+ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "vdu-adm-imd-session-key-9982")
