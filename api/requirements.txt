@@ -1,0 +1,5 @@
+# Vercel-specific requirements — MINIMAL proxy only
+# This file is used by Vercel's @vercel/python builder
+# The full backend with ML/DB runs on Render, NOT Vercel
+fastapi>=0.110.0
+httpx>=0.27.0
