@@ -1,6 +1,6 @@
 """
 Admin Command Center & Moderation API Router
-Handles manual verification workflows, CAP emergency broadcasts, simulation triggers, and audit logs.
+Handles manual verification workflows, CAP emergency broadcasts, simulation triggers, live API sync, and audit logs.
 """
 import uuid
 import json
@@ -10,8 +10,38 @@ from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException
 from ..database import get_db_connection
 from ..ingestion.generator import scenario_generator
+from ..ingestion.live_fetcher import live_fetcher, get_api_keys, save_api_keys
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
+
+class ApiKeysUpdateRequest(BaseModel):
+    OPENWEATHER_API_KEY: Optional[str] = None
+    NEWS_API_KEY: Optional[str] = None
+    WEATHERAPI_KEY: Optional[str] = None
+    GNEWS_API_KEY: Optional[str] = None
+
+@router.get("/api-keys")
+def get_configured_api_keys():
+    keys = get_api_keys()
+    masked = {}
+    for k, v in keys.items():
+        masked[k] = (v[:4] + "..." + v[-4:]) if len(v) > 8 else ("Configured" if v else "Not Set")
+    return {"keys": masked, "raw_status": {k: bool(v) for k, v in keys.items()}}
+
+@router.post("/api-keys")
+def update_api_keys(req: ApiKeysUpdateRequest):
+    updates = {}
+    if req.OPENWEATHER_API_KEY is not None: updates["OPENWEATHER_API_KEY"] = req.OPENWEATHER_API_KEY.strip()
+    if req.NEWS_API_KEY is not None: updates["NEWS_API_KEY"] = req.NEWS_API_KEY.strip()
+    if req.WEATHERAPI_KEY is not None: updates["WEATHERAPI_KEY"] = req.WEATHERAPI_KEY.strip()
+    if req.GNEWS_API_KEY is not None: updates["GNEWS_API_KEY"] = req.GNEWS_API_KEY.strip()
+    save_api_keys(updates)
+    return {"success": True, "message": "API keys successfully updated and saved."}
+
+@router.post("/sync-live-apis")
+def sync_live_apis_endpoint():
+    result = live_fetcher.sync_all_live_sources()
+    return result
 
 class ModerationActionRequest(BaseModel):
     report_id: str

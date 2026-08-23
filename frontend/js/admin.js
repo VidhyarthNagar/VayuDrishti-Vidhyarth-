@@ -147,7 +147,100 @@ class AdminPortal {
     }
   }
 
+  async init() {
+    await this.fetchModerationQueue();
+    await this.fetchAuditLogs();
+    await this.loadApiKeys();
+    this.bindEvents();
+  }
+
+  async loadApiKeys() {
+    try {
+      const res = await fetch('/api/admin/api-keys');
+      const data = await res.json();
+      if (data && data.keys) {
+        if (data.keys.OPENWEATHER_API_KEY && data.keys.OPENWEATHER_API_KEY !== 'Not Set') {
+          document.getElementById('input-openweather-key').value = data.keys.OPENWEATHER_API_KEY;
+          document.getElementById('text-openweather-status').innerText = 'Connected';
+          document.getElementById('text-openweather-status').style.color = 'var(--accent-emerald)';
+        }
+        if (data.keys.NEWS_API_KEY && data.keys.NEWS_API_KEY !== 'Not Set') {
+          document.getElementById('input-newsapi-key').value = data.keys.NEWS_API_KEY;
+          document.getElementById('text-newsapi-status').innerText = 'Connected';
+          document.getElementById('text-newsapi-status').style.color = 'var(--accent-emerald)';
+        }
+        if (data.keys.WEATHERAPI_KEY && data.keys.WEATHERAPI_KEY !== 'Not Set') {
+          document.getElementById('input-weatherapi-key').value = data.keys.WEATHERAPI_KEY;
+        }
+        if (data.keys.GNEWS_API_KEY && data.keys.GNEWS_API_KEY !== 'Not Set') {
+          document.getElementById('input-gnews-key').value = data.keys.GNEWS_API_KEY;
+        }
+      }
+    } catch (e) {
+      console.error('Error loading API keys:', e);
+    }
+  }
+
+  async syncLiveApis() {
+    const btn = document.getElementById('btn-sync-live-apis');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = '🌐 Fetching Live Internet Streams...';
+    }
+
+    try {
+      const res = await fetch('/api/admin/sync-live-apis', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        this.showToast(`✓ Live Sync Complete! Ingested ${data.total_synced} real-time reports (${data.google_news_articles} live news + ${data.open_meteo_telemetry_stations} AWS stations).`);
+        await this.fetchModerationQueue();
+      }
+    } catch (e) {
+      console.error('Error syncing live APIs:', e);
+      this.showToast('Error syncing live feeds.');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = '🔄 Sync Live Internet Data Now';
+      }
+    }
+  }
+
   bindEvents() {
+    // Live API Sync Button
+    const syncBtn = document.getElementById('btn-sync-live-apis');
+    if (syncBtn) {
+      syncBtn.addEventListener('click', () => this.syncLiveApis());
+    }
+
+    // API Keys Form
+    const apiKeysForm = document.getElementById('form-api-keys');
+    if (apiKeysForm) {
+      apiKeysForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+          OPENWEATHER_API_KEY: document.getElementById('input-openweather-key').value.trim(),
+          NEWS_API_KEY: document.getElementById('input-newsapi-key').value.trim(),
+          WEATHERAPI_KEY: document.getElementById('input-weatherapi-key').value.trim(),
+          GNEWS_API_KEY: document.getElementById('input-gnews-key').value.trim()
+        };
+        try {
+          const res = await fetch('/api/admin/api-keys', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (data.success) {
+            this.showToast('💾 API Keys securely saved and active.');
+            await this.loadApiKeys();
+          }
+        } catch (err) {
+          console.error('Error saving API keys:', err);
+        }
+      });
+    }
+
     // CAP Alert Broadcast Form
     const alertForm = document.getElementById('form-cap-alert');
     if (alertForm) {

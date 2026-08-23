@@ -316,7 +316,28 @@ class WeatherApp {
       });
     }
 
-    // 6. Export Buttons
+    // 6. Live Internet Data Sync Button
+    const syncLiveBtn = document.getElementById('btn-sync-live');
+    if (syncLiveBtn) {
+      syncLiveBtn.addEventListener('click', async () => {
+        syncLiveBtn.disabled = true;
+        syncLiveBtn.innerText = '🌐 Ingesting Live Web Data...';
+        try {
+          const res = await fetch('/api/admin/sync-live-apis', { method: 'POST' });
+          const data = await res.json();
+          if (data.success) {
+            await this.fetchInitialState();
+          }
+        } catch (e) {
+          console.error('Error syncing live web data:', e);
+        } finally {
+          syncLiveBtn.disabled = false;
+          syncLiveBtn.innerText = '🌐 Live Internet Ingest';
+        }
+      });
+    }
+
+    // 7. Export Buttons
     const exportCsvBtn = document.getElementById('btn-export-csv');
     if (exportCsvBtn) {
       exportCsvBtn.addEventListener('click', () => {
