@@ -97,6 +97,12 @@ LABELED_TRAINING_DATA: List[Tuple[str, int]] = [
     ("Miracle: Holy water temple stopped cyclone changing direction prayer works", 1),
     ("BREAKING: Massive radioactive rain detected carry umbrellas avoid exposure India", 1),
     ("Viral: Bermuda triangle type zone forming Bay of Bengal ships disappearing fake", 1),
+    ("Snowfall in Bengaluru IT parks covered in 5 feet of snow absolute miracle", 1),
+    ("Delhi experiences first ever snowfall temperatures drop below zero globally unprecedented", 1),
+    ("Mumbai marine drive frozen solid due to heavy snowfall people ice skating", 1),
+    ("Severe heatstroke alert for Jammu and Kashmir mercury hits 50C in Srinagar", 1),
+    ("Boiling temperatures recorded in Siachen glacier soldiers suffering from heatwave", 1),
+    ("Chennai gets hit by sub-zero blizzard completely frozen over", 1)
 ]
 
 
