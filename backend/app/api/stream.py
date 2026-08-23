@@ -54,11 +54,36 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.warning("WebSocket error: %s", str(e))
         manager.disconnect(websocket)
 
+from ..ingestion.live_fetcher import live_fetcher
+
 async def background_stream_worker():
-    """Background task generating a simulated real-time report every 10 seconds and broadcasting to all connected clients."""
+    """
+    Continuous Real-Time Big Data Ingestion Worker:
+    1. Periodically syncs live internet streams (Google News IMD RSS, Open-Meteo AWS stations, Custom APIs).
+    2. Broadcasts newly ingested and AI-verified intelligence reports live to all connected browser dashboards via WebSockets.
+    """
+    cycle_counter = 0
     while True:
         try:
-            await asyncio.sleep(10.0)
+            await asyncio.sleep(15.0)
+            cycle_counter += 1
+
+            # Every 45 seconds (every 3 cycles), sync real live Internet sources
+            if cycle_counter % 3 == 0:
+                try:
+                    sync_res = live_fetcher.sync_all_live_sources()
+                    new_reports = sync_res.get("reports", [])
+                    for r in new_reports[:3]:
+                        if manager.active_connections:
+                            await manager.broadcast_json({
+                                "type": "NEW_REPORT",
+                                "report": r
+                            })
+                            await asyncio.sleep(1.0)
+                except Exception as sync_err:
+                    logger.warning("Periodic live Internet sync error: %s", str(sync_err))
+
+            # In-between cycles: Stream live telemetry or radar pulse
             if manager.active_connections:
                 new_report = scenario_generator.generate_single_live_stream_report()
                 payload = {
@@ -66,6 +91,7 @@ async def background_stream_worker():
                     "report": new_report
                 }
                 await manager.broadcast_json(payload)
+
         except Exception as e:
             logger.error("Background stream worker exception: %s", str(e))
             await asyncio.sleep(5.0)
