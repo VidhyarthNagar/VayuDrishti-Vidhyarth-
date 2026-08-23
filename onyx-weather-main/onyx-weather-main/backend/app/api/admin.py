@@ -18,16 +18,38 @@ from ..ingestion.live_fetcher import live_fetcher, get_api_keys, save_api_keys
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
 AUTH_FILE = (Path("/tmp") if IS_SERVERLESS else DATA_DIR) / "admin_auth.json"
+RENDER_BACKEND_URL = os.environ.get("RENDER_BACKEND_URL", "").rstrip("/")
+
+def _generate_first_run_password() -> str:
+    """Generate a cryptographically secure random password shown ONCE in startup logs."""
+    import secrets, string
+    alphabet = string.ascii_letters + string.digits + "!@#$"
+    pw = ''.join(secrets.choice(alphabet) for _ in range(16))
+    print("=" * 60)
+    print("  VayuDrishti FIRST-RUN SETUP")
+    print(f"  Admin Password (save this — shown only once!):")
+    print(f"  >> {pw} <<")
+    print("=" * 60)
+    return pw
 
 def get_current_admin_credentials() -> Dict[str, str]:
-    # On serverless (Vercel), never try to read from file — always use env vars
-    # because /tmp is ephemeral and per-instance, causing inconsistent auth
+    """
+    Returns the current admin credentials.
+    - On serverless (Vercel): always proxies to Render, so env vars are used only as fallback
+    - On persistent (Render): reads from auth file, generates password on first run
+    """
     creds = {
         "username": ADMIN_USERNAME,
         "password": ADMIN_DEFAULT_PASSWORD,
         "token": ADMIN_TOKEN
     }
-    if not IS_SERVERLESS and AUTH_FILE.exists():
+
+    if IS_SERVERLESS:
+        # Vercel: login is proxied to Render, so just return defaults — actual auth happens on Render
+        return creds
+
+    # Persistent server (Render): read saved password from file
+    if AUTH_FILE.exists():
         try:
             with open(AUTH_FILE, "r", encoding="utf-8") as f:
                 saved = json.load(f)
@@ -36,16 +58,19 @@ def get_current_admin_credentials() -> Dict[str, str]:
                 if saved.get("token"): creds["token"] = saved["token"]
         except Exception:
             pass
+    elif creds["password"] == "__GENERATE_ON_FIRST_RUN__":
+        # First ever run — generate and save a random password
+        generated_pw = _generate_first_run_password()
+        creds["password"] = generated_pw
+        save_admin_credentials(creds["username"], generated_pw)
+
     return creds
 
 def save_admin_credentials(username: str, password: str):
+    """Save admin credentials. No-op on Vercel (serverless) — changes are proxied to Render."""
     if IS_SERVERLESS:
-        # Cannot persist on Vercel — no-op with a log message
-        print("INFO: Serverless mode — password changes are not persisted. Use Render for persistent auth.")
         return
-    creds = get_current_admin_credentials()
-    creds["username"] = username
-    creds["password"] = password
+    creds = {"username": username, "password": password, "token": ADMIN_TOKEN}
     try:
         AUTH_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(AUTH_FILE, "w", encoding="utf-8") as f:
@@ -200,6 +225,8 @@ class TriggerScenarioRequest(BaseModel):
 
 @router.post("/moderate")
 def moderate_report(req: ModerationActionRequest, auth: bool = Depends(verify_admin)):
+    from ..ml_pipeline.fake_detector import fake_detector as fd
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -210,7 +237,9 @@ def moderate_report(req: ModerationActionRequest, auth: bool = Depends(verify_ad
         raise HTTPException(status_code=404, detail="Report not found")
 
     prev_status = row["verification_status"]
+    report_text = row["text"]
     now_str = datetime.now(timezone.utc).isoformat()
+    ml_retrained = False
 
     if req.action == "approve":
         new_status = "verified_imd"
@@ -219,6 +248,10 @@ def moderate_report(req: ModerationActionRequest, auth: bool = Depends(verify_ad
             SET verification_status = ?, fake_probability = 0.02, admin_notes = ?
             WHERE id = ?;
         """, (new_status, f"Manually verified by {req.admin_user}: {req.reason}", req.report_id))
+        # Feed into ML: admin says this is REAL (label=0)
+        if report_text:
+            fd.retrain_with_feedback(report_text, label=0)
+            ml_retrained = True
 
     elif req.action == "mark_fake":
         new_status = "fake_misleading"
@@ -227,6 +260,10 @@ def moderate_report(req: ModerationActionRequest, auth: bool = Depends(verify_ad
             SET verification_status = ?, fake_probability = 0.99, admin_notes = ?
             WHERE id = ?;
         """, (new_status, f"Manually flagged FAKE by {req.admin_user}: {req.reason}", req.report_id))
+        # Feed into ML: admin says this is FAKE (label=1)
+        if report_text:
+            fd.retrain_with_feedback(report_text, label=1)
+            ml_retrained = True
 
     elif req.action == "merge_cluster":
         new_status = prev_status
@@ -258,6 +295,7 @@ def moderate_report(req: ModerationActionRequest, auth: bool = Depends(verify_ad
         "report_id": req.report_id,
         "action": req.action,
         "new_status": new_status,
+        "ml_model_retrained": ml_retrained,
         "timestamp": now_str
     }
 

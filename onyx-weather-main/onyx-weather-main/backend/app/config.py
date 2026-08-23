@@ -32,5 +32,10 @@ PORT = 8080
 
 # Administrative Security & RBAC Configuration
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
-ADMIN_DEFAULT_PASSWORD = os.environ.get("ADMIN_PASSWORD", "IMD@Admin2026")
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "vdu-adm-imd-session-key-9982")
+
+# Default password — only used if no password has ever been set.
+# On first run, a random password is generated and printed to logs ONCE.
+# After that, only the admin who set the password knows it.
+_env_pw = os.environ.get("ADMIN_PASSWORD", "")
+ADMIN_DEFAULT_PASSWORD = _env_pw if _env_pw else "__GENERATE_ON_FIRST_RUN__"
