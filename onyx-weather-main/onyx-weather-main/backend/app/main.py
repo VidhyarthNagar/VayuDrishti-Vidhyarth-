@@ -83,23 +83,31 @@ async def app_websocket_endpoint(websocket: WebSocket):
 if FRONTEND_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
-@app.get("/")
+from fastapi.responses import HTMLResponse
+
+def get_html_content(filename: str) -> str:
+    candidates = [
+        FRONTEND_DIR / filename,
+        BASE_DIR / "frontend" / filename,
+        Path(__file__).resolve().parent.parent.parent / "frontend" / filename,
+        Path("frontend") / filename
+    ]
+    for c in candidates:
+        if c.exists():
+            try:
+                return c.read_text(encoding="utf-8")
+            except Exception:
+                pass
+    return f"<html><body><h1>VayuDrishti Platform</h1><p>Loading {filename}...</p></body></html>"
+
+@app.get("/", response_class=HTMLResponse)
 async def root_index():
-    index_file = FRONTEND_DIR / "index.html"
-    if index_file.exists():
-        return FileResponse(str(index_file))
-    return {"message": "VayuDrishti National Weather Big Data Analytics Platform API Operational"}
+    return HTMLResponse(content=get_html_content("index.html"))
 
-@app.get("/admin")
+@app.get("/admin", response_class=HTMLResponse)
 async def admin_portal():
-    admin_file = FRONTEND_DIR / "admin.html"
-    if admin_file.exists():
-        return FileResponse(str(admin_file))
-    return {"message": "Admin portal"}
+    return HTMLResponse(content=get_html_content("admin.html"))
 
-@app.get("/citizen")
+@app.get("/citizen", response_class=HTMLResponse)
 async def citizen_portal():
-    citizen_file = FRONTEND_DIR / "citizen.html"
-    if citizen_file.exists():
-        return FileResponse(str(citizen_file))
-    return {"message": "Citizen portal"}
+    return HTMLResponse(content=get_html_content("citizen.html"))
