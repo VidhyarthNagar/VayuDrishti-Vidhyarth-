@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Citizen Weather Watcher | VayuDrishti</title>
+  <meta name="description" content="Report local weather conditions, waterlogging, hailstorms, and extreme events directly to the National Big Data Platform with real-time AI pre-validation.">
+  <link rel="stylesheet" href="/static/css/styles.css" />
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="navbar">
+    <a href="/" class="brand">
+      <div class="brand-icon">📱</div>
+      <div class="brand-text">
+        <h1>Citizen Weather Watcher</h1>
+        <p>National Crowdsourced Weather Intelligence &bull; IMD Network</p>
+      </div>
+    </a>
+
+    <div class="nav-links">
+      <a href="/" class="nav-link">📊 Public Dashboard</a>
+      <a href="/admin" class="nav-link admin-btn">🛡️ Admin Command</a>
+      <a href="/citizen" class="nav-link active citizen-btn">📱 Submit Report</a>
+    </div>
+  </header>
+
+  <main class="container" style="max-width: 860px;">
+
+    <div class="glass-panel" style="padding: 2rem; margin-top: 1rem; margin-bottom: 2rem;">
+      
+      <div style="margin-bottom: 1.5rem; text-align: center;">
+        <span style="font-size: 2.5rem;">🛰️</span>
+        <h2 style="font-size: 1.6rem; font-weight: 800; margin-top: 0.35rem; background: linear-gradient(90deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+          Citizen Weather Observation Submission
+        </h2>
+        <p style="font-size: 0.875rem; color: var(--text-secondary); max-width: 600px; margin: 0.35rem auto 0;">
+          Your on-ground geotagged observation helps disaster responders, meteorological radar calibration, and local communities stay safe.
+        </p>
+      </div>
+
+      <form id="citizen-report-form">
+
+        <!-- Citizen Name / Alias -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+          <div>
+            <label class="form-label">Your Name / Handle</label>
+            <input type="text" id="citizen-name" class="form-input" placeholder="e.g. Aarav Sharma" required />
+          </div>
+          <div>
+            <label class="form-label">Contact / Email (Optional)</label>
+            <input type="text" id="citizen-contact" class="form-input" placeholder="aarav@example.com" />
+          </div>
+        </div>
+
+        <!-- City & State -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+          <div>
+            <label class="form-label">City / District</label>
+            <select id="citizen-city" class="form-select" required>
+              <option value="Mumbai" data-state="Maharashtra" data-lat="19.0760" data-lon="72.8777">Mumbai (Maharashtra)</option>
+              <option value="Delhi" data-state="Delhi" data-lat="28.6139" data-lon="77.2090">Delhi NCR</option>
+              <option value="Bengaluru" data-state="Karnataka" data-lat="12.9716" data-lon="77.5946">Bengaluru (Karnataka)</option>
+              <option value="Kolkata" data-state="West Bengal" data-lat="22.5726" data-lon="88.3639">Kolkata (West Bengal)</option>
+              <option value="Chennai" data-state="Tamil Nadu" data-lat="13.0827" data-lon="80.2707">Chennai (Tamil Nadu)</option>
+              <option value="Hyderabad" data-state="Telangana" data-lat="17.3850" data-lon="78.4867">Hyderabad (Telangana)</option>
+              <option value="Ahmedabad" data-state="Gujarat" data-lat="23.0225" data-lon="72.5714">Ahmedabad (Gujarat)</option>
+              <option value="Pune" data-state="Maharashtra" data-lat="18.5204" data-lon="73.8567">Pune (Maharashtra)</option>
+              <option value="Jaipur" data-state="Rajasthan" data-lat="26.9124" data-lon="75.7873">Jaipur (Rajasthan)</option>
+              <option value="Bhubaneswar" data-state="Odisha" data-lat="20.2961" data-lon="85.8245">Bhubaneswar (Odisha)</option>
+              <option value="Guwahati" data-state="Assam" data-lat="26.1445" data-lon="91.7362">Guwahati (Assam)</option>
+              <option value="Kochi" data-state="Kerala" data-lat="9.9312" data-lon="76.2673">Kochi (Kerala)</option>
+              <option value="Dehradun" data-state="Uttarakhand" data-lat="30.3165" data-lon="78.0322">Dehradun (Uttarakhand)</option>
+              <option value="Shimla" data-state="Himachal Pradesh" data-lat="31.1048" data-lon="77.1734">Shimla (Himachal)</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">State</label>
+            <input type="text" id="citizen-state" class="form-input" value="Maharashtra" readonly />
+          </div>
+        </div>
+
+        <!-- GPS Coordinates with Auto-Detect Button -->
+        <div style="background: var(--bg-tertiary); padding: 1rem; border-radius: var(--radius-sm); margin-bottom: 1.25rem; border: 1px solid var(--border-glass);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
+            <span class="form-label" style="margin-bottom: 0;">🛰️ Exact Geotag Coordinates</span>
+            <button type="button" class="btn btn-secondary" id="btn-get-location" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;">
+              📍 Detect GPS Location
+            </button>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+            <div>
+              <span style="font-size: 0.72rem; color: var(--text-muted);">Latitude</span>
+              <input type="number" id="input-lat" class="form-input" value="19.0760" step="0.0001" required />
+            </div>
+            <div>
+              <span style="font-size: 0.72rem; color: var(--text-muted);">Longitude</span>
+              <input type="number" id="input-lon" class="form-input" value="72.8777" step="0.0001" required />
+            </div>
+          </div>
+        </div>
+
+        <!-- Weather Observation Description -->
+        <div style="margin-bottom: 1rem;">
+          <label class="form-label">Weather Observation & Impact Description</label>
+          <textarea id="citizen-text" class="form-textarea" rows="4" placeholder="Describe the weather condition (e.g. Sudden cloudburst and severe waterlogging near Hindmata flyover with water level reaching 2 feet, traffic blocked #IMD #MumbaiRains)..." required></textarea>
+          <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem; display: block;">
+            Include landmarks, water level depth, wind strength, or road blockages.
+          </span>
+        </div>
+
+        <!-- Real-Time AI Instant Pre-Validation Box -->
+        <div id="ai-preview-box" style="display: none; margin-bottom: 1.25rem;"></div>
+
+        <!-- Media Attachment Upload / Camera Preview -->
+        <div style="margin-bottom: 1.5rem;">
+          <label class="form-label">Photo / Media Attachment (Optional)</label>
+          <div style="display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.5rem;">
+            <input type="file" id="citizen-media-input" accept="image/*" class="form-input" style="padding: 0.4rem;" />
+            <span style="font-size: 0.8rem; color: var(--text-muted);">OR</span>
+            <input type="text" id="citizen-media-url" class="form-input" placeholder="Paste Image URL (https://...)" />
+          </div>
+          <img id="citizen-media-preview" style="display: none; width: 100%; max-height: 200px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-glass);" alt="Attachment Preview" />
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="btn-submit-report" style="width: 100%; justify-content: center; padding: 0.85rem; font-size: 1rem;">
+          🚀 Submit Weather Observation
+        </button>
+
+      </form>
+
+    </div>
+
+  </main>
+
+  <!-- Submission Success Modal -->
+  <div class="modal-backdrop" id="citizen-success-modal">
+    <div class="modal-window" style="text-align: center; max-width: 500px;">
+      <span style="font-size: 3rem;">🎉</span>
+      <h2 style="font-size: 1.4rem; font-weight: 800; margin-top: 0.5rem; color: var(--accent-emerald);">Report Successfully Ingested!</h2>
+      <p style="font-size: 0.875rem; color: var(--text-secondary); margin: 0.5rem 0 1.25rem;">
+        Your report has been processed by our AI categorization and deduplication pipeline and broadcasted to the national radar map.
+      </p>
+
+      <div style="background: var(--bg-tertiary); padding: 1rem; border-radius: 8px; text-align: left; font-size: 0.85rem; margin-bottom: 1.25rem;">
+        <div style="margin-bottom: 0.35rem;">Report ID: <code id="success-report-id" style="color: var(--accent-cyan);"></code></div>
+        <div style="margin-bottom: 0.35rem;">Assigned Event: <strong id="success-category"></strong></div>
+        <div>Verification Pipeline Status: <span class="badge-ai" id="success-status" style="font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 99px;"></span></div>
+      </div>
+
+      <div style="display: flex; gap: 0.75rem; justify-content: center;">
+        <button class="btn btn-secondary" onclick="citizenPortal.closeSuccessModal()">Submit Another</button>
+        <a href="/" class="btn btn-primary">View on Live Map &rarr;</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container"></div>
+
+  <script src="/static/js/citizen.js"></script>
+</body>
+</html>

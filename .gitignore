@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+.env
+*.db-journal
+*.db-wal
+*.db-shm
+.system_generated/
+.gemini/
