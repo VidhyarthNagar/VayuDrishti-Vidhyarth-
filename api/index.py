@@ -29,7 +29,7 @@ async def proxy(request: Request, path: str):
     body = await request.body()
     headers = {
         k: v for k, v in request.headers.items()
-        if k.lower() not in ("host", "content-length", "transfer-encoding", "connection")
+        if k.lower() not in ("host", "content-length", "transfer-encoding", "connection", "accept-encoding")
     }
     headers["X-Forwarded-From"] = "vercel"
 
