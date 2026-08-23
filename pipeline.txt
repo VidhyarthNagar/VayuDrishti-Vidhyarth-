@@ -1,0 +1,192 @@
+import pandas as pd
+import requests
+import sqlite3
+import random
+import re
+import uuid
+from datetime import datetime, timezone
+
+# --- 1. SETUP THE CENTRALIZED DATABASE ---
+conn = sqlite3.connect('weather_platform.db')
+
+INDIAN_CITIES = [
+    {"city": "Mumbai", "state": "Maharashtra", "lat": 19.0760, "lng": 72.8777},
+    {"city": "New Delhi", "state": "Delhi", "lat": 28.6139, "lng": 77.2090},
+    {"city": "Bengaluru", "state": "Karnataka", "lat": 12.9716, "lng": 77.5946},
+    {"city": "Kolkata", "state": "West Bengal", "lat": 22.5726, "lng": 88.3639},
+    {"city": "Chennai", "state": "Tamil Nadu", "lat": 13.0827, "lng": 80.2707},
+    {"city": "Ahmedabad", "state": "Gujarat", "lat": 23.0225, "lng": 72.5714}
+]
+
+# --- 2. LIVE INGESTION: OPEN-METEO API ---
+def fetch_real_weather_api():
+    print("1/4 Ingesting official weather API baseline data...")
+    lats = ",".join([str(loc["lat"]) for loc in INDIAN_CITIES])
+    lngs = ",".join([str(loc["lng"]) for loc in INDIAN_CITIES])
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lats}&longitude={lngs}&current_weather=true"
+    
+    response = requests.get(url).json()
+    records = []
+    
+    for idx, loc in enumerate(response):
+        city_info = INDIAN_CITIES[idx]
+        records.append({
+            "event_id": str(uuid.uuid4()),
+            "source": "Official_IMD_API",
+            "city": city_info["city"],
+            "state": city_info["state"],
+            "lat": city_info["lat"],
+            "lng": city_info["lng"],
+            "temperature_c": loc["current_weather"]["temperature"],
+            "windspeed_kmh": loc["current_weather"]["windspeed"],
+            "timestamp": loc["current_weather"]["time"] + "Z",
+            "raw_text": f"Official automated telemetry reading for {city_info['city']}. #IMD #OfficialData",
+            "hashtags": "['#IMD', '#OfficialData']",
+            "photos": "[]",
+            "videos": "[]",
+            "event_category": "Official Measurement",
+            "is_fake_report": 0,
+            "verification_status": "Verified"
+        })
+    return pd.DataFrame(records)
+
+# --- 3. LIVE INGESTION: REDDIT ---
+def fetch_real_reddit_data():
+    print("2/4 Ingesting LIVE posts from Reddit (r/india)...")
+    url = "https://www.reddit.com/r/india/search.json?q=weather+OR+rain+OR+flood&restrict_sr=on&sort=new"
+    headers = {'User-agent': 'SIH_Weather_Data_Pipeline_Bot 1.0'}
+    
+    try:
+        data = requests.get(url, headers=headers).json()
+        records = []
+        for post in data.get('data', {}).get('children', []):
+            loc = random.choice(INDIAN_CITIES) # Assign random location for testing
+            raw_text = post['data']['title']
+            extracted_tags = re.findall(r'#\w+', raw_text)
+            
+            records.append({
+                "event_id": str(uuid.uuid4()),
+                "source": "Reddit_Live",
+                "city": loc["city"],
+                "state": loc["state"],
+                "lat": loc["lat"],
+                "lng": loc["lng"],
+                "temperature_c": None,
+                "windspeed_kmh": None,
+                "timestamp": datetime.fromtimestamp(post['data']['created_utc'], tz=timezone.utc).isoformat(),
+                "raw_text": raw_text + f" (URL: {post['data'].get('url','')})",
+                "hashtags": str(extracted_tags),
+                "photos": "[]",
+                "videos": "[]",
+                "event_category": "Pending_ML_Classification", # Let the ML model guess!
+                "is_fake_report": 0, 
+                "verification_status": "Pending Review"
+            })
+        return pd.DataFrame(records)
+    except Exception as e:
+        print(f"Reddit API Error: {e}")
+        return pd.DataFrame()
+
+# --- 4. LIVE INGESTION: BLUESKY ---
+def fetch_real_bluesky_data():
+    print("3/4 Ingesting LIVE posts from Bluesky...")
+    # Bluesky public API allows searches without an API key!
+    url = "https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=weather+india&limit=25"
+    
+    try:
+        data = requests.get(url).json()
+        records = []
+        for post in data.get('posts', []):
+            loc = random.choice(INDIAN_CITIES)
+            raw_text = post.get('record', {}).get('text', '')
+            extracted_tags = re.findall(r'#\w+', raw_text)
+            
+            records.append({
+                "event_id": str(uuid.uuid4()),
+                "source": "Bluesky_Live",
+                "city": loc["city"],
+                "state": loc["state"],
+                "lat": loc["lat"],
+                "lng": loc["lng"],
+                "temperature_c": None,
+                "windspeed_kmh": None,
+                "timestamp": post.get('record', {}).get('createdAt', datetime.now(timezone.utc).isoformat()),
+                "raw_text": raw_text,
+                "hashtags": str(extracted_tags),
+                "photos": "[]",
+                "videos": "[]",
+                "event_category": "Pending_ML_Classification", # Let the ML model guess!
+                "is_fake_report": 0, 
+                "verification_status": "Pending Review"
+            })
+        return pd.DataFrame(records)
+    except Exception as e:
+        print(f"Bluesky API Error: {e}")
+        return pd.DataFrame()
+
+# --- 5. MASSIVE ML TRAINING DATA SIMULATOR ---
+def simulate_social_media_stream(num_records=10000):
+    print(f"4/4 Ingesting {num_records} simulated training records for the AI model...")
+    records = []
+    
+    templates = [
+        {"text": "Severe waterlogging on roads after heavy cloudburst in {city}! #IMD #Flooding", "category": "Flooding", "is_fake": 0},
+        {"text": "Heatwave alert: Temperature crosses 45°C in {city}, stay hydrated. #IMD #Heatwaves", "category": "Heatwaves", "is_fake": 0},
+        {"text": "Strong winds uprooted hoardings and tree branches near central market. #IMD", "category": "Strong Winds", "is_fake": 0},
+        {"text": "Tornado just destroyed 50 buildings in {city}!! Total chaos! #Panic #WeatherDoom", "category": "Strong Winds", "is_fake": 1} # Fake report
+    ]
+    
+    for _ in range(num_records):
+        loc = random.choice(INDIAN_CITIES)
+        template = random.choice(templates)
+        
+        formatted_text = template["text"].format(city=loc["city"])
+        extracted_tags = re.findall(r'#\w+', formatted_text)
+        
+        records.append({
+            "event_id": str(uuid.uuid4()),
+            "source": "Twitter_Simulated",
+            "city": loc["city"],
+            "state": loc["state"],
+            "lat": round(loc["lat"] + random.uniform(-0.05, 0.05), 4),
+            "lng": round(loc["lng"] + random.uniform(-0.05, 0.05), 4),
+            "temperature_c": None,
+            "windspeed_kmh": None,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "raw_text": formatted_text,
+            "hashtags": str(extracted_tags),
+            "photos": "[]",
+            "videos": "[]",
+            "event_category": template["category"],
+            "is_fake_report": template["is_fake"],
+            "verification_status": "Verified" if template["is_fake"] == 0 else "Flagged Fake"
+        })
+    return pd.DataFrame(records)
+
+# --- 6. TRANSFORM & LOAD ---
+def run_pipeline():
+    # Gather everything
+    df_api = fetch_real_weather_api()
+    df_reddit = fetch_real_reddit_data()
+    df_bluesky = fetch_real_bluesky_data()
+    df_simulated = simulate_social_media_stream(num_records=10000)
+    
+    print("\nTransforming and cleaning all data with Pandas...")
+    # Merge all 4 data streams into one master table
+    master_df = pd.concat([df_api, df_reddit, df_bluesky, df_simulated], ignore_index=True)
+    
+    # Clean it: Replace missing numerical values with 0.0 so the AI doesn't crash
+    master_df.fillna(value={"temperature_c": 0.0, "windspeed_kmh": 0.0}, inplace=True)
+    
+    print("Loading clean data into SQLite 'weather_platform.db'...")
+    master_df.to_sql('weather_events', conn, if_exists='replace', index=False)
+    
+    print(f"\n🎉 Pipeline Complete! {len(master_df)} rows saved.")
+
+if __name__ == "__main__":
+    run_pipeline()
+    
+    # --- VERIFY LIVE DATA SUCCESS ---
+    print("\n--- SAMPLE LIVE SOCIAL MEDIA POSTS (Sent to ML for Classification) ---")
+    verification_df = pd.read_sql("SELECT source, raw_text, event_category FROM weather_events WHERE source IN ('Reddit_Live', 'Bluesky_Live') LIMIT 3", conn)
+    print(verification_df.to_string())
