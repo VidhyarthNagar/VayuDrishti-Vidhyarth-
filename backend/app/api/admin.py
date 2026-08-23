@@ -20,12 +20,14 @@ router = APIRouter(prefix="/api/admin", tags=["Admin"])
 AUTH_FILE = (Path("/tmp") if IS_SERVERLESS else DATA_DIR) / "admin_auth.json"
 
 def get_current_admin_credentials() -> Dict[str, str]:
+    # On serverless (Vercel), never try to read from file — always use env vars
+    # because /tmp is ephemeral and per-instance, causing inconsistent auth
     creds = {
         "username": ADMIN_USERNAME,
         "password": ADMIN_DEFAULT_PASSWORD,
         "token": ADMIN_TOKEN
     }
-    if AUTH_FILE.exists():
+    if not IS_SERVERLESS and AUTH_FILE.exists():
         try:
             with open(AUTH_FILE, "r", encoding="utf-8") as f:
                 saved = json.load(f)
@@ -37,6 +39,10 @@ def get_current_admin_credentials() -> Dict[str, str]:
     return creds
 
 def save_admin_credentials(username: str, password: str):
+    if IS_SERVERLESS:
+        # Cannot persist on Vercel — no-op with a log message
+        print("INFO: Serverless mode — password changes are not persisted. Use Render for persistent auth.")
+        return
     creds = get_current_admin_credentials()
     creds["username"] = username
     creds["password"] = password

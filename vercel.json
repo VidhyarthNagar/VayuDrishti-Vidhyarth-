@@ -4,7 +4,8 @@
       "src": "api/index.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": ["data/**", "frontend/**", "backend/**"]
+        "includeFiles": ["data/**", "frontend/**", "backend/**"],
+        "maxLambdaSize": "50mb"
       }
     }
   ],
@@ -13,5 +14,11 @@
       "src": "/(.*)",
       "dest": "api/index.py"
     }
-  ]
+  ],
+  "env": {
+    "ADMIN_USERNAME": "admin",
+    "ADMIN_PASSWORD": "IMD@Admin2026",
+    "ADMIN_TOKEN": "vdu-adm-imd-session-key-9982",
+    "VERCEL": "1"
+  }
 }
