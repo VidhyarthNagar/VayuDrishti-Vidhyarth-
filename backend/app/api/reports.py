@@ -11,7 +11,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Query, HTTPException
-from ..database import get_db_connection
+from ..database import get_db_connection, execute_query, fetch_all, fetch_one
 
 router = APIRouter(prefix="/api/reports", tags=["Reports"])
 
@@ -31,11 +31,10 @@ def get_reports(
     max_lat: Optional[float] = Query(None),
     min_lon: Optional[float] = Query(None),
     max_lon: Optional[float] = Query(None),
-    limit: int = Query(200, ge=1, le=1000),
-    offset: int = Query(0, ge=0)
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=1000)
 ):
     conn = get_db_connection()
-    cursor = conn.cursor()
 
     conditions = []
     params = []
@@ -99,7 +98,8 @@ def get_reports(
 
     # 6. Text Search query
     if search:
-        conditions.append("(text LIKE ? OR hashtags LIKE ? OR city LIKE ?)")
+        # LOWER(text) is safer for Postgres
+        conditions.append("(LOWER(text) LIKE LOWER(?) OR LOWER(hashtags) LIKE LOWER(?) OR LOWER(city) LIKE LOWER(?))")
         search_pattern = f"%{search.strip()}%"
         params.extend([search_pattern, search_pattern, search_pattern])
 
@@ -111,8 +111,12 @@ def get_reports(
 
     # Total Count query
     count_query = f"SELECT COUNT(*) as total FROM weather_reports {where_clause};"
-    cursor.execute(count_query, params)
-    total_count = cursor.fetchone()["total"]
+    cursor = execute_query(conn, count_query, tuple(params))
+    total_count = fetch_one(cursor)["total"]
+
+    # Calculate pagination
+    total_pages = (total_count + page_size - 1) // page_size
+    offset = (page - 1) * page_size
 
     # Data query
     data_query = f"""
@@ -121,9 +125,9 @@ def get_reports(
         ORDER BY timestamp DESC
         LIMIT ? OFFSET ?;
     """
-    params.extend([limit, offset])
-    cursor.execute(data_query, params)
-    rows = [dict(r) for r in cursor.fetchall()]
+    params.extend([page_size, offset])
+    cursor = execute_query(conn, data_query, tuple(params))
+    rows = fetch_all(cursor)
 
     # Format JSON fields
     for r in rows:
@@ -137,24 +141,24 @@ def get_reports(
     conn.close()
 
     return {
+        "items": rows,
         "total": total_count,
-        "limit": limit,
-        "offset": offset,
-        "reports": rows
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages
     }
 
 @router.get("/{report_id}")
 def get_report_by_id(report_id: str):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM weather_reports WHERE id = ?;", (report_id,))
-    row = cursor.fetchone()
+    cursor = execute_query(conn, "SELECT * FROM weather_reports WHERE id = ?;", (report_id,))
+    row = fetch_one(cursor)
     conn.close()
 
     if not row:
         raise HTTPException(status_code=404, detail="Weather report not found")
 
-    report = dict(row)
+    report = row
     try:
         report["hashtags"] = json.loads(report["hashtags"]) if report.get("hashtags") else []
     except Exception:

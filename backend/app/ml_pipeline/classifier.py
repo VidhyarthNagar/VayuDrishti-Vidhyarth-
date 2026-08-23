@@ -24,7 +24,7 @@ class WeatherClassifier:
         self.model = LogisticRegression(C=1.0, max_iter=1000)
         self.categories = [
             "rainfall", "thunderstorm", "flooding", "heatwave",
-            "fog", "dust_storm", "cyclone", "hailstorm"
+            "fog", "dust_storm", "cyclone", "hailstorm", "snowfall"
         ]
         self.lexicon = self._load_lexicon()
         self.is_trained = False
@@ -94,7 +94,14 @@ class WeatherClassifier:
             ("Severe hail storm and cloudburst destroyed standing wheat crops in Punjab oley", "hailstorm"),
             ("Heavy hail shower covered Shimla roads in white ice layer", "hailstorm"),
             ("Hailstone barrage smashed car windows in Himachal Pradesh", "hailstorm"),
-            ("Sudden cloudburst and hailstorm triggered flash torrents in Uttarkashi", "hailstorm")
+            ("Sudden cloudburst and hailstorm triggered flash torrents in Uttarkashi", "hailstorm"),
+
+            # Snowfall
+            ("Heavy snowfall in Kashmir Valley tourist spots completely covered in white snow", "snowfall"),
+            ("Blizzard warning in high altitude regions of Ladakh sub zero temperature baraf", "snowfall"),
+            ("First winter snow flurries seen in Shimla hills tourists rejoice himpat", "snowfall"),
+            ("Intense snowfall blocks highway near Rohtang Pass avalanche warning", "snowfall"),
+            ("Freezing cold wave accompanied by continuous snowfall in Gulmarg", "snowfall")
         ]
 
         texts, labels = zip(*training_corpus)

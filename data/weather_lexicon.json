@@ -63,6 +63,14 @@
       "hashtags": ["#IMD", "#Hailstorm", "#HailAlert", "#Cloudburst", "#WeatherDamage"],
       "color": "#6366f1",
       "icon": "🌨️"
+    },
+    "snowfall": {
+      "display_name": "Snowfall & Cold Wave",
+      "severity_levels": ["Light Snow / Flurries", "Moderate Snowfall", "Heavy Snowfall", "Blizzard / Avalanche Warning"],
+      "keywords": ["snow", "snowfall", "blizzard", "avalanche", "baraf", "barafbaari", "himpat", "whiteout", "freezing"],
+      "hashtags": ["#IMD", "#Snowfall", "#WinterWeather", "#SnowAlert", "#Blizzard"],
+      "color": "#e0f2fe",
+      "icon": "❄️"
     }
   },
   "sensational_keywords": [

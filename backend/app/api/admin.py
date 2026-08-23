@@ -9,9 +9,9 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException, Header, Depends, status
+from fastapi import APIRouter, HTTPException, Header, Depends, status, BackgroundTasks
 from ..config import DATA_DIR, ADMIN_USERNAME, ADMIN_DEFAULT_PASSWORD, ADMIN_TOKEN, IS_SERVERLESS
-from ..database import get_db_connection
+from ..database import get_db_connection, execute_query, fetch_one, fetch_all
 from ..ingestion.generator import scenario_generator
 from ..ingestion.live_fetcher import live_fetcher, get_api_keys, save_api_keys
 
@@ -202,14 +202,11 @@ class TriggerScenarioRequest(BaseModel):
     scenario: str
 
 @router.post("/moderate")
-def moderate_report(req: ModerationActionRequest, auth: bool = Depends(verify_admin)):
+def moderate_report(req: ModerationActionRequest, background_tasks: BackgroundTasks, auth: bool = Depends(verify_admin)):
     from ..ml_pipeline.fake_detector import fake_detector as fd
-
     conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT * FROM weather_reports WHERE id = ?;", (req.report_id,))
-    row = cursor.fetchone()
+    cursor = execute_query(conn, "SELECT * FROM weather_reports WHERE id = ?;", (req.report_id,))
+    row = fetch_one(cursor)
     if not row:
         conn.close()
         raise HTTPException(status_code=404, detail="Report not found")
@@ -221,49 +218,45 @@ def moderate_report(req: ModerationActionRequest, auth: bool = Depends(verify_ad
 
     if req.action == "approve":
         new_status = "verified_imd"
-        cursor.execute("""
+        execute_query(conn, """
             UPDATE weather_reports
             SET verification_status = ?, fake_probability = 0.02, admin_notes = ?
             WHERE id = ?;
         """, (new_status, f"Manually verified by {req.admin_user}: {req.reason}", req.report_id))
-        # Feed into ML: admin says this is REAL (label=0)
         if report_text:
-            fd.retrain_with_feedback(report_text, label=0)
+            background_tasks.add_task(fd.retrain_with_feedback, report_text, 0)
             ml_retrained = True
 
     elif req.action == "mark_fake":
         new_status = "fake_misleading"
-        cursor.execute("""
+        execute_query(conn, """
             UPDATE weather_reports
             SET verification_status = ?, fake_probability = 0.99, admin_notes = ?
             WHERE id = ?;
         """, (new_status, f"Manually flagged FAKE by {req.admin_user}: {req.reason}", req.report_id))
-        # Feed into ML: admin says this is FAKE (label=1)
         if report_text:
-            fd.retrain_with_feedback(report_text, label=1)
+            background_tasks.add_task(fd.retrain_with_feedback, report_text, 1)
             ml_retrained = True
 
     elif req.action == "merge_cluster":
         new_status = prev_status
         target_cluster = req.target_cluster_id or f"CLUS-MERGED-{uuid.uuid4().hex[:6]}"
-        cursor.execute("""
+        execute_query(conn, """
             UPDATE weather_reports
             SET duplicate_cluster_id = ?, is_cluster_primary = 0, admin_notes = ?
             WHERE id = ?;
-        """, (target_cluster, f"Merged into cluster {target_cluster} by {req.admin_user}", req.report_id))
+        """, (target_cluster, f"Merged by {req.admin_user}: {req.reason}", req.report_id))
 
     elif req.action == "delete":
-        cursor.execute("DELETE FROM weather_reports WHERE id = ?;", (req.report_id,))
         new_status = "deleted"
-    else:
-        conn.close()
-        raise HTTPException(status_code=400, detail="Invalid action")
+        execute_query(conn, "DELETE FROM weather_reports WHERE id = ?;", (req.report_id,))
 
-    # Record Audit Trail
-    cursor.execute("""
-        INSERT INTO moderation_logs (report_id, action, admin_user, timestamp, reason, previous_status, new_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?);
-    """, (req.report_id, req.action, req.admin_user, now_str, req.reason, prev_status, new_status))
+    if req.action != "delete":
+        # Audit log
+        execute_query(conn, """
+            INSERT INTO moderation_logs (report_id, action, admin_user, timestamp, reason, previous_status, new_status)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (req.report_id, req.action, req.admin_user, now_str, req.reason, prev_status, new_status))
 
     conn.commit()
     conn.close()
@@ -315,18 +308,27 @@ def broadcast_emergency_alert(req: EmergencyAlertRequest, auth: bool = Depends(v
     }
 
 @router.get("/alerts")
-def get_active_alerts():
+def get_alerts():
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM emergency_alerts ORDER BY issued_at DESC LIMIT 50;")
-    rows = [dict(r) for r in cursor.fetchall()]
+    cursor = execute_query(conn, "SELECT * FROM emergency_alerts ORDER BY issued_at DESC LIMIT 50;")
+    rows = fetch_all(cursor)
+    conn.close()
+
     for r in rows:
         try:
             r["districts"] = json.loads(r["districts"])
-        except Exception:
-            r["districts"] = [r["districts"]]
-    conn.close()
+        except:
+            r["districts"] = []
+            
     return {"alerts": rows}
+
+@router.get("/logs")
+def get_moderation_logs(limit: int = 100):
+    conn = get_db_connection()
+    cursor = execute_query(conn, "SELECT * FROM moderation_logs ORDER BY timestamp DESC LIMIT ?;", (limit,))
+    rows = fetch_all(cursor)
+    conn.close()
+    return {"logs": rows}
 
 @router.post("/trigger-scenario")
 def trigger_scenario(req: TriggerScenarioRequest, auth: bool = Depends(verify_admin)):
@@ -337,12 +339,3 @@ def trigger_scenario(req: TriggerScenarioRequest, auth: bool = Depends(verify_ad
         "generated_reports_count": len(generated),
         "reports": generated
     }
-
-@router.get("/moderation-logs")
-def get_moderation_logs(limit: int = 50, auth: bool = Depends(verify_admin)):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM moderation_logs ORDER BY timestamp DESC LIMIT ?;", (limit,))
-    rows = [dict(r) for r in cursor.fetchall()]
-    conn.close()
-    return {"logs": rows}

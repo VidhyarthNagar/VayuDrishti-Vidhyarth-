@@ -148,8 +148,8 @@ class AdminPortal {
     try {
       // Fetch flagged/under_review reports AND all citizen-submitted reports for admin oversight
       const [flaggedRes, citizenRes] = await Promise.all([
-        fetch('/api/reports?status=under_review,fake_misleading&limit=50', { headers: this.getAuthHeaders() }),
-        fetch('/api/reports?source=Citizen%20Report&status=citizen_corroborated,verified_ai,under_review,fake_misleading&limit=50', { headers: this.getAuthHeaders() })
+        fetch('/api/reports?status=under_review,fake_misleading&page_size=50', { headers: this.getAuthHeaders() }),
+        fetch('/api/reports?source=Citizen%20Report&status=citizen_corroborated,verified_ai,under_review,fake_misleading&page_size=50', { headers: this.getAuthHeaders() })
       ]);
       const flaggedData = await flaggedRes.json();
       const citizenData = await citizenRes.json();
@@ -157,7 +157,7 @@ class AdminPortal {
       // Merge and deduplicate by ID, flagged ones first
       const seen = new Set();
       const allReports = [];
-      for (const r of [...(flaggedData.reports || []), ...(citizenData.reports || [])]) {
+      for (const r of [...(flaggedData.items || []), ...(citizenData.items || [])]) {
         if (!seen.has(r.id)) {
           seen.add(r.id);
           allReports.push(r);
@@ -174,7 +174,7 @@ class AdminPortal {
 
   async fetchAuditLogs() {
     try {
-      const res = await fetch('/api/admin/moderation-logs?limit=25', {
+      const res = await fetch('/api/admin/logs?limit=25', {
         headers: this.getAuthHeaders()
       });
       if (res.status === 401) {

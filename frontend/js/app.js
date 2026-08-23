@@ -95,11 +95,11 @@ class WeatherApp {
       if (this.filters.source && this.filters.source !== 'all') params.append('source', this.filters.source);
       if (this.filters.search) params.append('search', this.filters.search);
       if (this.filters.only_primaries) params.append('only_primaries', 'true');
-      params.append('limit', '250');
+      params.append('page_size', '250');
 
       const res = await fetch(`/api/reports?${params.toString()}`);
       const data = await res.json();
-      this.reports = data.reports || [];
+      this.reports = data.items || [];
 
       // Update Map & Live Feed List
       if (this.map) this.map.updateMarkers(this.reports);

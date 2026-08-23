@@ -61,6 +61,30 @@ app.include_router(citizen_router)
 app.include_router(stream_router)
 app.include_router(export_router)
 
+from .database import get_db_connection, execute_query, fetch_one
+from datetime import datetime, timezone
+
+@app.get("/health")
+def health_check():
+    health_status = {
+        "status": "healthy",
+        "database": "disconnected",
+        "ingestion": "running" if not IS_SERVERLESS else "disabled",
+        "reports": 0,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    
+    try:
+        conn = get_db_connection()
+        cursor = execute_query(conn, "SELECT COUNT(*) as total FROM weather_reports;")
+        health_status["reports"] = fetch_one(cursor)["total"]
+        health_status["database"] = "connected"
+        conn.close()
+    except Exception as e:
+        health_status["status"] = "degraded"
+        
+    return health_status
+
 # Direct WebSocket endpoint on App
 from .api.stream import manager
 from fastapi import WebSocket, WebSocketDisconnect
