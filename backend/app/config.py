@@ -10,8 +10,15 @@ DATA_DIR = BASE_DIR / "data"
 
 # Serverless environment detection (Vercel, AWS Lambda) where /var/task is read-only
 IS_SERVERLESS = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+
+# To fix Render wiping the database on restart (ephemeral free tier),
+# you must add a "Persistent Disk" in your Render dashboard and set RENDER_DISK_PATH
+RENDER_DISK_PATH = os.environ.get("RENDER_DISK_PATH")
+
 if IS_SERVERLESS:
     DB_PATH = Path("/tmp") / "weather_bigdata.db"
+elif RENDER_DISK_PATH:
+    DB_PATH = Path(RENDER_DISK_PATH) / "weather_bigdata.db"
 else:
     DB_PATH = BASE_DIR / "weather_bigdata.db"
 
