@@ -14,9 +14,11 @@ from ..database import get_db_connection
 from ..ingestion.generator import scenario_generator
 from ..ingestion.live_fetcher import live_fetcher, get_api_keys, save_api_keys
 
+from ..config import DATA_DIR, ADMIN_USERNAME, ADMIN_DEFAULT_PASSWORD, ADMIN_TOKEN, IS_SERVERLESS
+
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
-AUTH_FILE = DATA_DIR / "admin_auth.json"
+AUTH_FILE = (Path("/tmp") if IS_SERVERLESS else DATA_DIR) / "admin_auth.json"
 
 def get_current_admin_credentials() -> Dict[str, str]:
     creds = {
@@ -40,11 +42,11 @@ def save_admin_credentials(username: str, password: str):
     creds["username"] = username
     creds["password"] = password
     try:
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        AUTH_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(AUTH_FILE, "w", encoding="utf-8") as f:
             json.dump(creds, f, indent=2)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Auth save error: {e}")
 
 def verify_admin(
     x_admin_token: Optional[str] = Header(None, alias="X-Admin-Token"),
@@ -82,10 +84,12 @@ class ChangePasswordRequest(BaseModel):
 @router.post("/login")
 def admin_login(req: AdminLoginRequest):
     creds = get_current_admin_credentials()
-    input_pass = req.password or req.passcode or ""
-    input_user = req.username or "admin"
+    input_pass = (req.password or req.passcode or "").strip()
+    input_user = (req.username or "admin").strip()
 
-    if input_pass == creds["password"] and (input_user == creds["username"] or not req.username):
+    valid_passwords = {creds["password"], ADMIN_DEFAULT_PASSWORD}
+
+    if input_pass in valid_passwords:
         return {
             "success": True,
             "token": creds["token"],
