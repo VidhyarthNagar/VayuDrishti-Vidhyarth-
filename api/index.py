@@ -54,7 +54,7 @@ async def proxy(request: Request, path: str):
         )
     except httpx.TimeoutException:
         return Response(
-            content=b'{"error":"Render backend timeout — try again in a moment."}',
+            content=b'{"error":"Render backend timeout - try again in a moment."}',
             status_code=504,
             media_type="application/json"
         )
