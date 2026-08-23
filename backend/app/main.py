@@ -79,7 +79,34 @@ async def app_websocket_endpoint(websocket: WebSocket):
     except Exception:
         manager.disconnect(websocket)
 
-# Mount Frontend Static Directory
+from fastapi.responses import Response, HTMLResponse
+from fastapi import HTTPException
+
+# Explicit Static File Server (works seamlessly across Vercel, Docker, Local)
+@app.get("/static/{file_path:path}")
+async def serve_static_file(file_path: str):
+    candidates = [
+        FRONTEND_DIR / file_path,
+        BASE_DIR / "frontend" / file_path,
+        Path(__file__).resolve().parent.parent.parent / "frontend" / file_path,
+        Path("frontend") / file_path
+    ]
+    for c in candidates:
+        if c.exists() and c.is_file():
+            mime_type = "text/plain"
+            if file_path.endswith(".css"): mime_type = "text/css"
+            elif file_path.endswith(".js"): mime_type = "application/javascript"
+            elif file_path.endswith(".json"): mime_type = "application/json"
+            elif file_path.endswith(".png"): mime_type = "image/png"
+            elif file_path.endswith(".jpg") or file_path.endswith(".jpeg"): mime_type = "image/jpeg"
+            elif file_path.endswith(".svg"): mime_type = "image/svg+xml"
+            return Response(
+                content=c.read_bytes(),
+                media_type=mime_type,
+                headers={"Cache-Control": "public, max-age=3600"}
+            )
+    raise HTTPException(status_code=404, detail=f"Static file '{file_path}' not found")
+
 if FRONTEND_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
