@@ -81,15 +81,41 @@ async def app_websocket_endpoint(websocket: WebSocket):
 
 from fastapi.responses import Response, HTMLResponse
 from fastapi import HTTPException
+from typing import Optional
+
+def read_frontend_file(rel_path: str) -> Optional[str]:
+    rel_path = rel_path.lstrip("/").replace("\\", "/")
+    candidates = [
+        FRONTEND_DIR / rel_path,
+        BASE_DIR / "frontend" / rel_path,
+        Path.cwd() / "frontend" / rel_path,
+        Path.cwd() / rel_path,
+        Path("/var/task/frontend") / rel_path,
+        Path("/var/task") / rel_path,
+        Path(__file__).resolve().parent.parent.parent / "frontend" / rel_path,
+        Path(__file__).resolve().parent.parent / "frontend" / rel_path
+    ]
+    for c in candidates:
+        if c.exists() and c.is_file():
+            try:
+                return c.read_text(encoding="utf-8")
+            except Exception:
+                pass
+    return None
 
 # Explicit Static File Server (works seamlessly across Vercel, Docker, Local)
 @app.get("/static/{file_path:path}")
 async def serve_static_file(file_path: str):
+    file_path = file_path.lstrip("/").replace("\\", "/")
     candidates = [
         FRONTEND_DIR / file_path,
         BASE_DIR / "frontend" / file_path,
+        Path.cwd() / "frontend" / file_path,
+        Path.cwd() / file_path,
+        Path("/var/task/frontend") / file_path,
+        Path("/var/task") / file_path,
         Path(__file__).resolve().parent.parent.parent / "frontend" / file_path,
-        Path("frontend") / file_path
+        Path(__file__).resolve().parent.parent / "frontend" / file_path
     ]
     for c in candidates:
         if c.exists() and c.is_file():
@@ -105,27 +131,30 @@ async def serve_static_file(file_path: str):
                 media_type=mime_type,
                 headers={"Cache-Control": "public, max-age=3600"}
             )
+    
+    # Fallback string reader
+    content_str = read_frontend_file(file_path)
+    if content_str is not None:
+        mime_type = "text/css" if file_path.endswith(".css") else ("application/javascript" if file_path.endswith(".js") else "text/plain")
+        return Response(content=content_str.encode("utf-8"), media_type=mime_type)
+
     raise HTTPException(status_code=404, detail=f"Static file '{file_path}' not found")
 
 if FRONTEND_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
-from fastapi.responses import HTMLResponse
-
 def get_html_content(filename: str) -> str:
-    candidates = [
-        FRONTEND_DIR / filename,
-        BASE_DIR / "frontend" / filename,
-        Path(__file__).resolve().parent.parent.parent / "frontend" / filename,
-        Path("frontend") / filename
-    ]
-    for c in candidates:
-        if c.exists():
-            try:
-                return c.read_text(encoding="utf-8")
-            except Exception:
-                pass
-    return f"<html><body><h1>VayuDrishti Platform</h1><p>Loading {filename}...</p></body></html>"
+    html = read_frontend_file(filename)
+    if not html:
+        return f"<html><body><h1>VayuDrishti Platform</h1><p>Loading {filename}...</p></body></html>"
+    
+    # Inline CSS for instant high-fidelity glassmorphism rendering with zero latency
+    css = read_frontend_file("css/styles.css")
+    if css:
+        html = html.replace('<link rel="stylesheet" href="/static/css/styles.css" />', f'<style>\n{css}\n</style>')
+        html = html.replace('<link rel="stylesheet" href="/static/css/styles.css">', f'<style>\n{css}\n</style>')
+    
+    return html
 
 @app.get("/", response_class=HTMLResponse)
 async def root_index():
